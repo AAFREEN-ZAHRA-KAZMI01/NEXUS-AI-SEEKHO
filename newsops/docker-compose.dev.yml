@@ -1,0 +1,30 @@
+version: "3.9"
+
+services:
+  newsops-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: newsops-api-dev
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - DATABASE_URL=sqlite+aiosqlite:////app/data/newsops.db
+      - APP_HOST=0.0.0.0
+      - APP_PORT=8000
+      - DEBUG=true
+    volumes:
+      - .:/app
+      - newsops-dev-data:/app/data
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - newsops-network
+
+volumes:
+  newsops-dev-data:
+
+networks:
+  newsops-network:
+    driver: bridge
