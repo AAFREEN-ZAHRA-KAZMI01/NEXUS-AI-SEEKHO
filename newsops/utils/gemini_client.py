@@ -1,18 +1,20 @@
 import json
 from google import genai
 from google.genai import types
-from config import GEMINI_API_KEY
+from config import GEMINI_API_KEY, MODELS
 
-_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
+_client = genai.Client(api_key=GEMINI_API_KEY) if (GEMINI_API_KEY and GEMINI_API_KEY.strip()) else None
 
 
 async def call_gemini(
     system_prompt: str,
     user_message: str,
-    model: str = "gemini-1.5-flash",
+    model: str = None,
     temperature: float = 0.2,
     expect_json: bool = True,
 ) -> dict | str:
+    if model is None:
+        model = MODELS.get("ingestion", "gemini-2.5-flash")
     if not _client:
         raise RuntimeError("GEMINI_API_KEY is not configured")
 

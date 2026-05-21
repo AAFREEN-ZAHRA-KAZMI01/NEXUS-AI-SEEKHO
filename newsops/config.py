@@ -21,13 +21,13 @@ SMTP_USER = os.getenv("SMTP_USER", "")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 
 MODELS = {
-    "orchestrator":  "gemini-1.5-flash",
-    "ingestion":     "gemini-1.5-flash",
-    "analysis":      "gemini-1.5-flash",
-    "decision":      "gemini-1.5-flash",
-    "research":      "gemini-1.5-flash",
-    "execution":     "gemini-1.5-flash",
-    "input_parser":  "gemini-1.5-flash",
+    "orchestrator":  "gemini-2.5-flash",
+    "ingestion":     "gemini-2.5-flash",
+    "analysis":      "gemini-2.5-flash",
+    "decision":      "gemini-2.5-flash",
+    "research":      "gemini-2.5-flash",
+    "execution":     "gemini-2.5-flash",
+    "input_parser":  "gemini-2.5-flash",
 }
 
 

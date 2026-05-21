@@ -728,247 +728,296 @@ MOCK_DECISIONS = {
     "finance": {
         "agent": "decision",
         "domain": "finance",
+        "candidates_evaluated": 5,
         "actions": [
             {
                 "rank": 1,
-                "action_type": "update_hedging_position",
-                "description": "Trigger immediate USD/PKR forward contracts at current interbank rate to protect export receivables.",
-                "api_endpoint": "/api/finance/hedging",
+                "action_id": "A1",
+                "action_type": "book_hedging_contract",
+                "description": "Book USD/PKR forward contracts at current interbank rate to protect export receivables from devaluation.",
+                "api_endpoint": "POST /api/finance/hedging/book",
                 "api_payload": {
-                    "exposure_usd": 200000000,
-                    "hedge_ratio_pct": 75,
-                    "tenor_days": 90,
-                    "target_rate_pkr": 280.50
+                    "currency_pair": "USD/PKR",
+                    "amount_usd": 12000000,
+                    "duration_days": 90,
+                    "rate": 285.00
                 },
+                "quantified_delta": "Locks in PKR 3.42B of exposure at 285 PKR/USD for 90 days",
                 "feasibility_score": 8,
                 "impact_score": 9,
-                "composite_score": 8.4,
-                "justification": "Protects PKR 12.0M of export revenue currently at risk from currency devaluation by locking in exchange rates.",
-                "success_metric": "Hedged USD value protection",
-                "time_to_execute": "12 hours"
+                "composite_score": 8.6,
+                "justification": "Capital flight of USD 200M drives PKR depreciation. Hedging USD 12M at 285 prevents further revenue erosion on unhedged export contracts. Expected to protect PKR 2.5M in at-risk export revenue.",
+                "success_metric": "hedged_amount_usd in state increases by 12000000",
+                "time_to_execute": "< 4 hours"
             },
             {
                 "rank": 2,
-                "action_type": "set_fx_alert",
-                "description": "Configure real-time volatility thresholds on SBP daily FX rates with notifications.",
-                "api_endpoint": "/api/finance/alerts",
+                "action_id": "A2",
+                "action_type": "update_export_pricing",
+                "description": "Update export contract pricing to reflect new 2.33% USD/PKR rate increase.",
+                "api_endpoint": "POST /api/finance/pricing/export_update",
                 "api_payload": {
                     "currency_pair": "USD/PKR",
-                    "threshold_pct": 1.5,
-                    "frequency": "hourly"
+                    "rate_delta_pct": 2.33,
+                    "affected_contracts": ["CONTRACT-001", "CONTRACT-002", "CONTRACT-003"],
+                    "effective_date": "2026-05-21T00:00:00Z"
                 },
-                "feasibility_score": 10,
-                "impact_score": 6,
-                "composite_score": 7.6,
-                "justification": "Ensures treasury team has immediate visibility of intraday rate spikes for capital deployment.",
-                "success_metric": "Alert response latency",
-                "time_to_execute": "1 hour"
+                "quantified_delta": "3 contracts repriced to reflect PKR 285 exchange rate",
+                "feasibility_score": 9,
+                "impact_score": 7,
+                "composite_score": 7.8,
+                "justification": "Contracts priced at old 278.5 rate become unprofitable. Repricing immediately closes the 2.33% gap and restores margin on active export deals.",
+                "success_metric": "contracts_repriced increases to 3 in state",
+                "time_to_execute": "< 2 hours"
             }
-        ]
+        ],
+        "recommended_execution_sequence": [1, 2],
+        "auto_execute_rank_1": True,
+        "reasoning_summary": "Hedging is prioritized because it locks in rate before further depreciation. Export repricing follows to close revenue gap on existing contracts."
     },
     "policy": {
         "agent": "decision",
         "domain": "policy",
+        "candidates_evaluated": 5,
         "actions": [
             {
                 "rank": 1,
-                "action_type": "update_compliance_checklist",
-                "description": "Re-audit transport contracts to enforce fuel-indexed pricing adjustment triggers.",
-                "api_endpoint": "/api/policy/compliance",
+                "action_id": "A1",
+                "action_type": "generate_compliance_tasks",
+                "description": "Generate compliance tasks for departments affected by the new OGRA fuel pricing notification.",
+                "api_endpoint": "POST /api/compliance/tasks/generate",
                 "api_payload": {
-                    "regulatory_ref": "OGRA-PET-2024-847",
-                    "effective_date": "2026-05-18",
-                    "compliance_category": "Logistics Surcharges",
-                    "audit_scope_pct": 100
+                    "regulation_id": "OGRA-PET-2024-847",
+                    "affected_departments": ["operations", "finance", "legal"],
+                    "deadline": "2026-05-28T00:00:00Z"
                 },
+                "quantified_delta": "9 compliance tasks created across 3 departments",
                 "feasibility_score": 9,
                 "impact_score": 8,
                 "composite_score": 8.4,
-                "justification": "Enables immediate capture of contract fuel clauses, ensuring fuel hikes are legally billed to customers.",
-                "success_metric": "Contracts updated and audited",
-                "time_to_execute": "24 hours"
+                "justification": "OGRA notification is legally binding. Generating compliance tasks immediately ensures all departments update fuel-indexed contracts within the legal window.",
+                "success_metric": "compliance_tasks_open increases in state",
+                "time_to_execute": "< 2 hours"
             },
             {
                 "rank": 2,
-                "action_type": "trigger_compliance_audit",
-                "description": "Initiate comprehensive regional compliance checks across all oil distribution depots.",
-                "api_endpoint": "/api/policy/audits",
+                "action_id": "A2",
+                "action_type": "update_pricing_policy",
+                "description": "Update pricing policy to reflect fuel duty change across all affected product categories.",
+                "api_endpoint": "POST /api/pricing/policy_update",
                 "api_payload": {
-                    "audit_type": "depot price enforcement",
-                    "priority": "high",
-                    "regions": ["Punjab", "Sindh"]
+                    "policy_ref": "POL-DUTY-2024",
+                    "affected_categories": ["transport", "logistics", "delivery"],
+                    "cost_delta_pct": 4.5
                 },
+                "quantified_delta": "3 pricing categories updated with 4.5% cost adjustment",
                 "feasibility_score": 8,
                 "impact_score": 7,
                 "composite_score": 7.4,
-                "justification": "Ensures logistics depots don't price-gouge beyond the legal OGRA PKR 12.74 limit.",
-                "success_metric": "Audits completed",
-                "time_to_execute": "48 hours"
+                "justification": "Duty increase of PKR 12.74/L translates to 4.5% cost delta. Updating policy prevents margin erosion on active transport contracts.",
+                "success_metric": "affected_categories in state updates to 3",
+                "time_to_execute": "< 1 hour"
             }
-        ]
+        ],
+        "recommended_execution_sequence": [1, 2],
+        "auto_execute_rank_1": True,
+        "reasoning_summary": "Compliance task generation is prioritized as it creates the accountability framework. Policy pricing update follows to capture the financial adjustment."
     },
     "logistics": {
         "agent": "decision",
         "domain": "logistics",
+        "candidates_evaluated": 5,
         "actions": [
             {
                 "rank": 1,
-                "action_type": "update_pricing",
-                "description": "Re-calculate shipping pricing matrices per-route to counter the 18% freight cost surge.",
-                "api_endpoint": "/api/logistics/pricing",
+                "action_id": "A1",
+                "action_type": "update_pricing_rule",
+                "description": "Increase Lahore-Karachi corridor pricing by 18% to offset fuel surge cost impact.",
+                "api_endpoint": "POST /api/logistics/pricing/update",
                 "api_payload": {
-                    "base_increase_pct": 12.5,
-                    "target_domains": ["logistics", "business"],
-                    "surcharge_pkr_per_kg": 0.45
+                    "route_id": "LAHORE-KARACHI",
+                    "price_delta_pct": 18.0,
+                    "effective_date": "2026-05-21T00:00:00Z"
                 },
+                "quantified_delta": "delivery_price_per_kg increases by 18% on LAHORE-KARACHI route",
                 "feasibility_score": 9,
                 "impact_score": 9,
                 "composite_score": 9.0,
-                "justification": "Directly offsets the cargo price increase by billing cargo surcharges, protecting company margins.",
-                "success_metric": "Delivery cost recovery",
-                "time_to_execute": "6 hours"
+                "justification": "PSO fuel surge of 18% directly increases per-km operating cost by PKR 0.43/kg. Immediately updating pricing recovers PKR 2.4M monthly margin loss on the affected corridor.",
+                "success_metric": "delivery_price_per_kg increases in state",
+                "time_to_execute": "< 1 hour"
             },
             {
                 "rank": 2,
-                "action_type": "reroute_fleet",
-                "description": "Redirect incoming heavy CKD container shipments from KPT to Gwadar dry-dock.",
-                "api_endpoint": "/api/logistics/reroute",
+                "action_id": "A2",
+                "action_type": "optimize_routes",
+                "description": "Optimize Lahore-Karachi route for fuel cost reduction to partially offset the 18% surge.",
+                "api_endpoint": "POST /api/logistics/routes/optimize",
                 "api_payload": {
-                    "vessels_diverted": 5,
-                    "alternative_port": "Gwadar Port",
-                    "carrier": "NLC Fleet"
+                    "current_route_id": "LAHORE-KARACHI",
+                    "optimization_target": "fuel_cost"
                 },
-                "feasibility_score": 6,
+                "quantified_delta": "fuel_cost_ratio_pct decreases by ~8.5% through route optimization",
+                "feasibility_score": 7,
                 "impact_score": 8,
-                "composite_score": 7.2,
-                "justification": "Bypasses KPTs 11.2 day dwell backlog to supply auto production lines in north zones.",
-                "success_metric": "Vessel delay reduction",
-                "time_to_execute": "48 hours"
+                "composite_score": 7.6,
+                "justification": "Route optimization yields 8.5% fuel savings that partially offset the 18% OGRA price surge, reducing net cost impact to ~9.5%.",
+                "success_metric": "fuel_cost_ratio_pct decreases in state",
+                "time_to_execute": "2-4 hours"
             }
-        ]
+        ],
+        "recommended_execution_sequence": [1, 2],
+        "auto_execute_rank_1": True,
+        "reasoning_summary": "Pricing update is immediate and directly recovers margin. Route optimization follows as a structural cost reduction measure."
     },
     "healthcare": {
         "agent": "decision",
         "domain": "healthcare",
+        "candidates_evaluated": 5,
         "actions": [
             {
                 "rank": 1,
+                "action_id": "A1",
                 "action_type": "trigger_emergency_procurement",
-                "description": "Directly execute emergency international tenders for Insulin Glargine imports via WHO coordination.",
-                "api_endpoint": "/api/healthcare/procurement",
+                "description": "Place emergency procurement order for 50,000 units of Insulin Glargine from WHO-approved suppliers.",
+                "api_endpoint": "POST /api/procurement/emergency_order",
                 "api_payload": {
-                    "item_name": "Insulin Glargine 100IU/ml",
-                    "quantity_vials": 50000,
-                    "priority": "critical",
-                    "source_country": "Turkey",
-                    "funding_source": "Punjab Emergency Fund"
+                    "item_id": "DRUG-INSULIN-GLARGINE-100IU",
+                    "quantity": 50000,
+                    "urgency": "emergency",
+                    "supplier_shortlist": ["Novo Nordisk Turkey", "Sanofi UAE"]
                 },
+                "quantified_delta": "emergency_pos_open +1, drug_availability_pct +5% toward recovery",
                 "feasibility_score": 8,
                 "impact_score": 10,
                 "composite_score": 9.2,
-                "justification": "Bypasses standard drug import delays to rescue 12,000 insulin-dependent diabetic patients in Lahore clinics.",
-                "success_metric": "Vials cleared and delivered",
-                "time_to_execute": "5 days"
+                "justification": "40% stock depletion at CMH and PIMS affects 12,000 patients. Emergency procurement with 3-day ETA is the only path to restore clinical coverage before critical threshold.",
+                "success_metric": "emergency_pos_open increases and drug_availability_pct recovers in state",
+                "time_to_execute": "< 2 hours"
             },
             {
                 "rank": 2,
-                "action_type": "update_clinical_protocols",
-                "description": "Distribute clinical guidance to Lahore hospitals for insulin rationing and formulary substitution.",
-                "api_endpoint": "/api/healthcare/protocols",
+                "action_id": "A2",
+                "action_type": "activate_substitute_protocol",
+                "description": "Activate Insulin NPH substitution protocol at CMH and PIMS while awaiting emergency shipment.",
+                "api_endpoint": "POST /api/clinical/protocols/activate",
                 "api_payload": {
-                    "guideline_id": "INSULIN-RAT-2024",
-                    "substitute_drug": "Insulin NPH",
-                    "target_clinics": ["Lahore General", "Mayo Hospital"]
+                    "protocol_id": "PROT-INSULIN-SUBST-001",
+                    "drug_id": "DRUG-INSULIN-GLARGINE-100IU",
+                    "affected_facilities": ["CMH", "PIMS"]
                 },
+                "quantified_delta": "Substitute protocol active across 2 facilities, 24 staff notified each",
                 "feasibility_score": 10,
                 "impact_score": 7,
                 "composite_score": 8.2,
-                "justification": "Minimizes mortality risk by utilizing accessible alternative drugs during active glargine safety shortfalls.",
-                "success_metric": "Hospital adherence rate",
-                "time_to_execute": "12 hours"
+                "justification": "Bridge treatment with Insulin NPH prevents patient harm during the 3-day procurement window. Protocol activation is immediate and requires no procurement.",
+                "success_metric": "Protocol activation confirmed at both facilities",
+                "time_to_execute": "< 1 hour"
             }
-        ]
+        ],
+        "recommended_execution_sequence": [1, 2],
+        "auto_execute_rank_1": True,
+        "reasoning_summary": "Emergency procurement addresses root cause. Substitute protocol provides immediate patient safety bridge during the procurement lead time."
     },
     "urban": {
         "agent": "decision",
         "domain": "urban",
+        "candidates_evaluated": 5,
         "actions": [
             {
                 "rank": 1,
-                "action_type": "dispatch_crews",
-                "description": "Mobilize emergency grid repair crews and heavy replacement switchgear to Kot Lakhpat sub-station.",
-                "api_endpoint": "/api/urban/maintenance",
+                "action_id": "A1",
+                "action_type": "dispatch_maintenance_crew",
+                "description": "Dispatch emergency electrical crew to Kot Lakhpat substation to restore the 132kV breaker fault.",
+                "api_endpoint": "POST /api/operations/dispatch",
                 "api_payload": {
-                    "target_substation": "132kV Kot Lakhpat",
-                    "crew_size": 24,
-                    "specialist_teams": ["Breaker Repair", "Grid Stability"],
-                    "work_order_id": "LESCO-WO-8472"
+                    "fault_location": "Kot Lakhpat 132kV Substation, Lahore",
+                    "crew_type": "electrical",
+                    "priority": "high",
+                    "eta_minutes": 45
                 },
+                "quantified_delta": "crews_dispatched +1, estimated 18-hour outage for 340,000 households addressed",
                 "feasibility_score": 9,
                 "impact_score": 9,
                 "composite_score": 9.0,
-                "justification": "Resolves the primary breaker fault directly to restore 18-hour outage for 340,000 Lahore residents.",
-                "success_metric": "Breaker restoration speed",
-                "time_to_execute": "6 hours"
+                "justification": "Direct breaker fault resolution restores grid to 340,000 households and 4,200 businesses. Electrical crew dispatch with 45-minute ETA is the fastest resolution path.",
+                "success_metric": "crews_dispatched increases in state",
+                "time_to_execute": "< 1 hour"
             },
             {
                 "rank": 2,
-                "action_type": "publish_advisory",
-                "description": "Broadcast emergency LESCO urban power schedule updates and load-management schedules.",
-                "api_endpoint": "/api/urban/alerts",
+                "action_id": "A3",
+                "action_type": "publish_public_advisory",
+                "description": "Issue public advisory via SMS and app to inform citizens about the outage and expected restoration.",
+                "api_endpoint": "POST /api/communications/public_advisory",
                 "api_payload": {
-                    "channels": ["SMS", "FM-93", "Twitter"],
-                    "advisory_text": "LESCO Emergency Alert: Unplanned substation repair at Kot Lakhpat in progress.",
-                    "affected_zones": ["DHA", "Gulberg", "Johar Town"]
+                    "zone_id": "LAHORE-EAST-ZONE",
+                    "issue_type": "power_outage",
+                    "severity": "high",
+                    "guidance_text": "LESCO Emergency: Power outage at Kot Lakhpat substation affecting DHA, Gulberg, Johar Town. Repair crew dispatched. ETA restoration: 6-8 hours. Use generators sparingly.",
+                    "channels": ["sms", "app"]
                 },
+                "quantified_delta": "advisories_published +1, estimated 45,000 citizens reached",
                 "feasibility_score": 10,
                 "impact_score": 6,
                 "composite_score": 7.6,
-                "justification": "Mitigates citizen complaints by providing precise restoral ETAs and contingency zone warnings.",
-                "success_metric": "Complaint index drop",
-                "time_to_execute": "30 minutes"
+                "justification": "Public advisory reduces complaint load and prevents panic by providing accurate ETA. Immediate, zero-cost action with high citizen satisfaction impact.",
+                "success_metric": "advisories_published increases in state",
+                "time_to_execute": "< 15 minutes"
             }
-        ]
+        ],
+        "recommended_execution_sequence": [1, 2],
+        "auto_execute_rank_1": True,
+        "reasoning_summary": "Crew dispatch directly resolves the fault. Public advisory runs in parallel to manage citizen expectations during the 6-8 hour repair window."
     },
     "business": {
         "agent": "decision",
         "domain": "business",
+        "candidates_evaluated": 5,
         "actions": [
             {
                 "rank": 1,
-                "action_type": "crm_outreach",
-                "description": "Trigger automated high-value buyer loyalty campaigns and discount alerts in Karachi.",
-                "api_endpoint": "/api/business/crm/outreach",
+                "action_id": "A3",
+                "action_type": "trigger_crm_workflow",
+                "description": "Trigger CRM retention workflow targeting the 47 at-risk merchant accounts in Karachi.",
+                "api_endpoint": "POST /api/crm/workflows/trigger",
                 "api_payload": {
-                    "target_accounts": 47,
-                    "incentive_pct": 15,
-                    "target_skus": ["SKU-1042 Premium Basmati", "SKU-2287 Cooking Oil"],
-                    "valid_days": 14
+                    "workflow_id": "WF-RETENTION-KARACHI-001",
+                    "segment": "karachi_at_risk_accounts",
+                    "message_template": "urgent_retention_offer_15pct_discount"
                 },
+                "quantified_delta": "churn_risk_customers decreases by ~30% through targeted outreach",
                 "feasibility_score": 9,
                 "impact_score": 8,
                 "composite_score": 8.4,
-                "justification": "Recovers PKR 2.63M in Karachi sales risk by immediately re-activating the 47 silent merchant buyers.",
-                "success_metric": "Account reactivation rate",
-                "time_to_execute": "2 hours"
+                "justification": "CRM workflow re-activates 47 silent high-value accounts responsible for PKR 2.63M revenue loss. 15% discount incentive recovers churn before end of Q3.",
+                "success_metric": "churn_risk_customers decreases in state",
+                "time_to_execute": "< 3 hours"
             },
             {
                 "rank": 2,
-                "action_type": "update_promotional_campaign",
-                "description": "Increase digital retail marketing budget in Karachi for fast-moving bulk products.",
-                "api_endpoint": "/api/business/campaigns",
+                "action_id": "A1",
+                "action_type": "launch_retention_campaign",
+                "description": "Launch a targeted discount campaign for Karachi high-value segment to recover Q3 revenue.",
+                "api_endpoint": "POST /api/crm/campaigns/create",
                 "api_payload": {
-                    "campaign_name": "Karachi Bulk Savings",
-                    "channel": "Facebook & Retail SMS",
-                    "additional_budget_pkr": 150000
+                    "region": "Karachi",
+                    "discount_pct": 15.0,
+                    "target_segment": "high_value_churn_risk",
+                    "duration_days": 14,
+                    "budget_pkr": 150000.0
                 },
+                "quantified_delta": "active_campaigns +1, projected reach of 480,000 PKR",
                 "feasibility_score": 10,
                 "impact_score": 6,
                 "composite_score": 7.6,
-                "justification": "Drives immediate wholesale order placement, clearing warehousing backlog of high-supply detergent SKUs.",
-                "success_metric": "Karachi order volume surge",
-                "time_to_execute": "12 hours"
+                "justification": "Campaign budget of PKR 150K projected to generate PKR 480K in recovered orders through 3.2x ROI on high-demand detergent and rice SKUs.",
+                "success_metric": "active_campaigns increases in state",
+                "time_to_execute": "< 2 hours"
             }
-        ]
+        ],
+        "recommended_execution_sequence": [1, 2],
+        "auto_execute_rank_1": True,
+        "reasoning_summary": "CRM workflow is prioritized for immediate account retention. Campaign runs in parallel to drive new order volume recovery."
     }
 }

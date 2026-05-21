@@ -74,7 +74,7 @@ class TestCSVParser:
     async def test_parse_csv_row_count(self, sample_csv_bytes):
         from parsers.csv_parser import parse_csv
         result = await parse_csv(sample_csv_bytes)
-        assert result.get("row_count") == 12
+        assert result.get("total_rows") == 12
 
     async def test_parse_csv_source_type(self, sample_csv_bytes):
         from parsers.csv_parser import parse_csv
@@ -84,15 +84,15 @@ class TestCSVParser:
     async def test_parse_csv_summary_stats(self, sample_csv_bytes):
         from parsers.csv_parser import parse_csv
         result = await parse_csv(sample_csv_bytes)
-        assert "summary_stats" in result
-        assert isinstance(result["summary_stats"], dict)
+        assert "numeric_summary" in result
+        assert isinstance(result["numeric_summary"], dict)
 
     async def test_parse_csv_inline_bytes(self):
         from parsers.csv_parser import parse_csv
         csv_data = b"name,value\nalpha,100\nbeta,200\n"
         result = await parse_csv(csv_data)
         assert isinstance(result, dict)
-        assert result.get("row_count") == 2
+        assert result.get("total_rows") == 2
 
     async def test_parse_csv_handles_empty_data(self):
         from parsers.csv_parser import parse_csv
@@ -121,7 +121,7 @@ class TestExcelParser:
     async def test_parse_excel_sheet_count(self, sample_excel_bytes):
         from parsers.excel_parser import parse_excel
         result = await parse_excel(sample_excel_bytes)
-        assert result.get("sheet_count", 0) >= 1
+        assert len(result.get("sheet_names", [])) >= 1
 
     async def test_parse_excel_source_type(self, sample_excel_bytes):
         from parsers.excel_parser import parse_excel

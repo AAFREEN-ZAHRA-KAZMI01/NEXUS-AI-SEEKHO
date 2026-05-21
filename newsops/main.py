@@ -17,9 +17,10 @@ from mock_api import endpoints as mock_api
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """Simple in-process rate limiter: 60 requests per IP per minute."""
 
-    def __init__(self, app, calls: int = 60, period: int = 60):
+    def __init__(self, app, calls: int = None, period: int = 60):
         super().__init__(app)
-        self.calls = calls
+        import os
+        self.calls = calls if calls is not None else int(os.getenv("RATE_LIMIT_CALLS", "60"))
         self.period = period
         self._store: dict[str, list[float]] = defaultdict(list)
 

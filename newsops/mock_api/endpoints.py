@@ -24,13 +24,6 @@ def _expiry_date(duration_days: int) -> str:
     ).isoformat().replace("+00:00", "Z")
 
 
-# ── Universal ─────────────────────────────────────────────────────────────────
-
-@router.get("/state/{domain}")
-async def get_domain_state(domain: str):
-    return get_state(domain)
-
-
 # ── Logistics ─────────────────────────────────────────────────────────────────
 
 class LogisticsPricingUpdateBody(BaseModel):
@@ -650,6 +643,8 @@ class EmailDraftBody(BaseModel):
 
 def _send_real_email(recipient: str, subject: str, body: str):
     if not SMTP_HOST or not SMTP_USER:
+        return False
+    if "@" not in recipient:
         return False
         
     msg = MIMEText(body)

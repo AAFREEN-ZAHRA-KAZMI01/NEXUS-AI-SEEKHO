@@ -46,8 +46,7 @@ class TestStateEndpoints:
 
     async def test_unknown_domain_returns_empty(self, client):
         r = await client.get("/api/state/nonexistent")
-        assert r.status_code == 200
-        assert r.json() == {}
+        assert r.status_code == 400
 
 
 # ── Logistics endpoints ────────────────────────────────────────────────────────

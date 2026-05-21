@@ -92,8 +92,8 @@ async def get_session_trace(session_id: str):
         "total_artifacts": len(artifacts),
         "pipeline_duration_seconds": session.duration_seconds if session else None,
         "notifications_sent": notifications,
-        "execution_status": exec_artifact.content.get("execution_status") 
-                            if exec_artifact else "unknown",
+        "execution_status": exec_artifact.content.get("execution_status")
+                            if (exec_artifact and exec_artifact.content) else "unknown",
     }
 
 
@@ -194,7 +194,7 @@ async def export_session_csv(session_id: str):
             facts = c.get("facts", [])
             summary = "; ".join([f.get("text", "") for f in facts[:2]])
         elif a.artifact_type == "exec_log":
-            summary = f"Status: {c.get('execution_status')}. Actions taken: {len(c.get('actions_taken', []))}"
+            summary = f"Status: {c.get('execution_status')}. Notifications sent: {len(c.get('notifications_sent', []))}"
         elif a.artifact_type == "actions":
             summary = f"Ranked actions: {len(c.get('actions', []))}"
         else:

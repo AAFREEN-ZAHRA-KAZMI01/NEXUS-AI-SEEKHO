@@ -13,9 +13,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 os.environ.setdefault("GEMINI_API_KEY", os.getenv("GEMINI_API_KEY", "AIzaSy_mock_gemini_api_key_placeholder"))
 os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///./test_newsops.db")
 os.environ.setdefault("DEBUG", "true")
+os.environ.setdefault("RATE_LIMIT_CALLS", "10000")
 
 from main import app  # noqa: E402 — env vars must be set first
-from database.db import create_tables  # noqa: E402
+from database.db import create_tables, engine  # noqa: E402
 from mock_api.state_store import reset_state  # noqa: E402
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
@@ -26,9 +27,13 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures"
 async def setup_database():
     await create_tables()
     yield
+    await engine.dispose()
     db_path = Path("test_newsops.db")
     if db_path.exists():
-        db_path.unlink(missing_ok=True)
+        try:
+            db_path.unlink(missing_ok=True)
+        except PermissionError:
+            pass
 
 
 # ── HTTP client ───────────────────────────────────────────────────────────────
