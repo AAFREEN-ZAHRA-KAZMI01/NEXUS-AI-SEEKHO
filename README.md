@@ -1,739 +1,770 @@
 # NEXUS AI — Autonomous Multi-Agent Intelligence System
 
-Nexus AI is an end-to-end autonomous intelligence platform built for the **AI Seekho Hackathon**. It ingests any business content (news articles, PDFs, URLs, spreadsheets, raw text), runs it through a 6-agent AI pipeline powered by **Google Gemini**, and autonomously executes domain-specific business actions — from repricing logistics routes to booking FX hedges and dispatching repair crews.
+> **AI Seekho Hackathon Submission** | Built by Aafreen Zahra Kazmi
 
-The system consists of two parts:
-
-| Layer | Stack | Location |
-|---|---|---|
-| **Backend** (NewsOps) | Python · FastAPI · Google Gemini · SQLAlchemy | `newsops/` |
-| **Frontend** (Nexus AI) | Flutter · Dart · Provider | `nexus_ai/` |
+Nexus AI converts any piece of business content — a news article, PDF, URL, CSV, or raw text — into autonomous operational decisions. A 6-agent AI pipeline powered by Google Gemini reads the input, maps its impact onto live domain KPIs, ranks the best response actions, and executes them against stateful Mock API endpoints — all without human intervention.
 
 ---
 
 ## Table of Contents
 
-1. [Project Overview](#1-project-overview)
-2. [High-Level Architecture](#2-high-level-architecture)
-3. [Backend — NewsOps](#3-backend--newsops)
-   - [Folder Structure](#31-folder-structure)
-   - [6 AI Agents](#32-6-ai-agents)
-   - [Content Parsers](#33-content-parsers)
-   - [REST API Endpoints](#34-rest-api-endpoints)
-   - [Mock API (30+ Endpoints)](#35-mock-api-30-endpoints)
-   - [Database Models](#36-database-models)
-   - [Configuration & Environment Variables](#37-configuration--environment-variables)
-4. [Frontend — Nexus AI](#4-frontend--nexus-ai)
-   - [Folder Structure](#41-folder-structure)
-   - [13 Screens](#42-13-screens)
-   - [State Management](#43-state-management)
-5. [End-to-End Data Flow](#5-end-to-end-data-flow)
-6. [Supported Domains](#6-supported-domains)
-7. [Installation & Setup](#7-installation--setup)
-   - [Backend (Local)](#71-backend-local)
-   - [Backend (Docker)](#72-backend-docker)
-   - [Frontend (Flutter)](#73-frontend-flutter)
-8. [API Usage Examples](#8-api-usage-examples)
-9. [Running Tests](#9-running-tests)
+1. [What It Does](#1-what-it-does)
+2. [Solution Design](#2-solution-design)
+3. [Architecture Overview](#3-architecture-overview)
+4. [Tech Stack](#4-tech-stack)
+5. [AI Agents](#5-ai-agents)
+6. [Content Parsers](#6-content-parsers)
+7. [REST API Reference](#7-rest-api-reference)
+8. [Mock APIs (Simulated Business Systems)](#8-mock-apis-simulated-business-systems)
+9. [Database Models](#9-database-models)
+10. [Frontend — Flutter App](#10-frontend--flutter-app)
+11. [Web Frontend — Vanilla JS](#11-web-frontend--vanilla-js)
+12. [Supported Domains](#12-supported-domains)
+13. [End-to-End Data Flow](#13-end-to-end-data-flow)
+14. [Setup & Installation](#14-setup--installation)
+15. [Environment Variables](#15-environment-variables)
+16. [Running Tests](#16-running-tests)
+17. [Project Structure](#17-project-structure)
 
 ---
 
-## 1. Project Overview
+## 1. What It Does
 
-### What Does It Do?
+| Step | What Happens |
+|------|-------------|
+| **Ingest** | Accepts raw text, URL, PDF, DOCX, CSV, or Excel as input |
+| **Detect** | Auto-classifies input into one of 6 business domains |
+| **Analyse** | 6 AI agents extract facts, score severity, map KPI impact, rank actions |
+| **Execute** | Calls Mock API endpoints — updates pricing, CRM, hedging, dispatch systems |
+| **Report** | Returns structured JSON with severity, insights, before/after state, and full agent trace |
 
-1. **Ingest** — accepts a news article, PDF report, CSV dataset, DOCX file, or any URL
-2. **Detect** — automatically identifies which of 6 business domains the content belongs to (Logistics, Business, Finance, Policy, Healthcare, or Urban)
-3. **Analyse** — a pipeline of 6 specialized AI agents extracts facts, verifies credibility, maps KPI impact, ranks actions, and executes the top action
-4. **Act** — calls stateful Mock API endpoints that simulate real business systems (pricing engines, CRM platforms, hedging desks, procurement portals)
-5. **Report** — returns a structured JSON response with severity score, insight, before/after state, delta, and a full agent trace
-
-### Who Is It For?
-
-Enterprises operating in Pakistan's logistics, finance, healthcare, or urban infrastructure sectors who need to convert real-time news signals into automated operational decisions.
+**Example:** A news article about a LESCO power outage in Lahore → system detects "logistics" domain → scores severity 8/10 → recommends rerouting 3 warehouse zones → calls `POST /mock/logistics/routes/optimize` → returns delta: -12% delivery time, +7% cost efficiency.
 
 ---
 
-## 2. High-Level Architecture
+## 2. Solution Design
 
-```
-┌──────────────────────────────────────────────────────────┐
-│                    Flutter App (nexus_ai)                 │
-│  Android · iOS · Web · Windows                           │
-│  13 screens  ·  Provider state management  ·  Dio HTTP   │
-└─────────────────────────┬────────────────────────────────┘
-                          │  HTTP (JSON / multipart)
-                          ▼
-┌──────────────────────────────────────────────────────────┐
-│                  FastAPI Server (:8000)                   │
-│  POST /api/analyse/text   POST /api/analyse/url          │
-│  POST /api/analyse/file   GET  /api/session/{id}/trace   │
-│  GET  /api/state/{domain} POST /api/state/reset          │
-└─────────────────────────┬────────────────────────────────┘
-                          │
-                          ▼
-┌──────────────────────────────────────────────────────────┐
-│                     run_pipeline()                        │
-│  Parsers: text | url | pdf | docx | csv | excel          │
-│  → create AnalysisSession  →  Orchestrator.run()         │
-└──────────────┬───────────────────────────────────────────┘
-               │
-               ▼
-┌──────────────────────────────────────────────┐
-│                  Orchestrator                 │
-│  ┌────────────────┐  ┌─────────────────┐     │
-│  │ IngestionAgent │  │  ResearchAgent  │  ── parallel
-│  └───────┬────────┘  └────────┬────────┘     │
-│          └──────────┬─────────┘              │
-│                     ▼                        │
-│           ┌──────────────────┐               │
-│           │  AnalysisAgent   │  ── sequential│
-│           └────────┬─────────┘               │
-│                    ▼                         │
-│           ┌──────────────────┐               │
-│           │  DecisionAgent   │  ── sequential│
-│           └────────┬─────────┘               │
-│                    ▼                         │
-│           ┌──────────────────┐               │
-│           │ merge_artifacts  │  ── pure Python
-│           └────────┬─────────┘               │
-│                    ▼                         │
-│           ┌──────────────────┐               │
-│           │ ExecutionAgent   │  ── calls Mock API
-│           └──────────────────┘               │
-└──────────────────────────────────────────────┘
-               │
-               ▼
-┌──────────────────────────────────────────────┐
-│            Mock API  (/api/*)                 │
-│  Stateful in-memory stores for all 6 domains │
-│  30+ action endpoints simulate real systems  │
-└──────────────────────────────────────────────┘
-               │
-               ▼
-┌──────────────────────────────────────────────┐
-│    PostgreSQL / SQLite  (async SQLAlchemy)    │
-│  analysis_sessions · agent_artifacts         │
-│  state_logs                                  │
-└──────────────────────────────────────────────┘
-```
+### Design Philosophy
+
+Nexus AI is designed around three core principles:
+
+1. **Domain Intelligence First** — Each of the 6 domains has its own KPI catalog, action catalog, and Mock API endpoints tuned for Pakistan-specific business context (PKR, SBP, LESCO, WAPDA, KSE).
+2. **Parallel + Sequential Agent Pipeline** — Agents that can run independently (Ingestion + Research) execute in parallel via `asyncio.gather`. Downstream agents (Analysis → Decision → Execution) run sequentially, each receiving merged artifacts from previous steps.
+3. **Mock-First Architecture** — All business system integrations (ERP, CRM, hedging, procurement) are simulated via an in-memory stateful Mock API. This allows the full autonomous execution loop to run without real credentials, while the same `ExecutionAgent` interface can be pointed at real APIs by swapping base URLs.
+
+### Key Design Decisions
+
+- **Google Gemini 2.5 Flash** is used for all 6 agents — chosen for its large context window, speed, and cost efficiency for hackathon-scale workloads.
+- **Fallback to mock responses** — if `GEMINI_API_KEY` is absent or invalid, every agent falls back to deterministic mock responses (`agents/mock_responses.py`) so the system remains fully functional for demos.
+- **Async SQLAlchemy** — all DB operations are non-blocking, enabling the pipeline and API polling to coexist without deadlocking.
+- **Two frontends** — a Flutter mobile/web app (`nexus_ai/`) for production quality, and a vanilla HTML/JS web app (`nexus_web/`) as a lightweight fallback that works in any browser with no build step.
 
 ---
 
-## 3. Backend — NewsOps
-
-### 3.1 Folder Structure
+## 3. Architecture Overview
 
 ```
-newsops/
-├── main.py                  # FastAPI app, CORS, rate-limiting, router wiring, lifespan
-├── config.py                # Gemini model names, domain keywords, severity labels, env vars
-├── requirements.txt         # All Python dependencies
-├── .env.example             # Environment variable template
-├── Dockerfile               # Production container image (Python 3.11 slim)
-├── docker-compose.yml       # Multi-container orchestration (API + PostgreSQL)
-│
-├── agents/                  # The 6 AI agents
-│   ├── orchestrator.py      # Pipeline coordinator — runs all agents in correct order
-│   ├── ingestion_agent.py   # Extracts facts, entities, numbers, confidence scores
-│   ├── research_agent.py    # Verifies credibility, adds Pakistan business context
-│   ├── analysis_agent.py    # Maps signals to domain KPIs, scores severity 1–10
-│   ├── decision_agent.py    # Ranks top-3 actions from domain catalogues
-│   └── execution_agent.py   # Calls Mock API, captures before/after state, logs
-│
-├── pipelines/
-│   └── pipeline.py          # run_pipeline() — parse → save session → orchestrate
-│
-├── parsers/                 # File type handlers
-│   ├── text_parser.py       # Raw text and URL content (BeautifulSoup scraper)
-│   ├── pdf_parser.py        # PDF with Tesseract OCR for scanned documents
-│   ├── docx_parser.py       # Microsoft Word documents
-│   ├── csv_parser.py        # Comma-separated values
-│   └── excel_parser.py      # .xlsx / .xls spreadsheets (pandas + openpyxl)
-│
-├── routers/                 # FastAPI route handlers
-│   ├── analysis.py          # POST /api/analyse/{text|url|file}
-│   ├── session.py           # GET /api/session/{id}/trace and /status
-│   └── state.py             # GET /api/state/{domain}, POST /api/state/reset
-│
-├── mock_api/                # Simulated business systems
-│   ├── state_store.py       # In-memory domain state (numeric values, mutated by actions)
-│   └── endpoints.py         # 30+ stateful mock action endpoints
-│
-├── database/
-│   ├── db.py                # Async SQLAlchemy engine, sessionmaker, get_db()
-│   └── models.py            # ORM: AnalysisSession, AgentArtifact, StateLog
-│
-├── schemas/
-│   ├── input_schemas.py     # TextAnalysisRequest, UrlAnalysisRequest, FileAnalysisRequest
-│   └── output_schemas.py    # AnalysisResponse, TraceResponse, and sub-models
-│
-└── utils/
-    ├── helpers.py           # generate_uuid(), detect_domain(), compute_delta(), retry()
-    └── logger.py            # SessionLogger — structured JSON logging to stdout
+┌─────────────────────────────────────────────────────────┐
+│                      CLIENT LAYER                       │
+│  Flutter App (nexus_ai/)    Vanilla Web (nexus_web/)    │
+└────────────────────────┬────────────────────────────────┘
+                         │ HTTP (REST/JSON)
+                         ▼
+┌─────────────────────────────────────────────────────────┐
+│                  FastAPI BACKEND (newsops/)              │
+│  ┌──────────────┐  ┌────────────┐  ┌────────────────┐  │
+│  │ /api/analyse │  │/api/session│  │   /api/state   │  │
+│  └──────┬───────┘  └────────────┘  └────────────────┘  │
+│         ▼                                               │
+│  ┌─────────────────────────────────────┐               │
+│  │           PARSER LAYER              │               │
+│  │  text / url / pdf / docx / csv /    │               │
+│  │  excel — normalises to clean text   │               │
+│  └──────────────────┬──────────────────┘               │
+│                     ▼                                   │
+│  ┌─────────────────────────────────────┐               │
+│  │          ORCHESTRATOR               │               │
+│  │  ┌─────────────┐ ┌───────────────┐  │               │
+│  │  │IngestionAgent│ │ ResearchAgent │  │  ← parallel  │
+│  │  └──────┬───────┘ └───────┬───────┘  │               │
+│  │         └────────┬────────┘          │               │
+│  │              ▼   ▼                   │               │
+│  │        ┌──────────────┐              │               │
+│  │        │ AnalysisAgent│              │  ← sequential│
+│  │        └──────┬───────┘              │               │
+│  │               ▼                      │               │
+│  │        ┌──────────────┐              │               │
+│  │        │ DecisionAgent│              │               │
+│  │        └──────┬───────┘              │               │
+│  │               ▼                      │               │
+│  │        ┌──────────────┐              │               │
+│  │        │merge_artifacts│             │               │
+│  │        └──────┬───────┘              │               │
+│  │               ▼                      │               │
+│  │        ┌──────────────┐              │               │
+│  │        │ExecutionAgent│              │               │
+│  │        └──────┬───────┘              │               │
+│  └───────────────┼─────────────────────┘               │
+│                  ▼                                       │
+│  ┌─────────────────────────────────────┐               │
+│  │          MOCK API LAYER             │               │
+│  │  logistics / business / finance /   │               │
+│  │  policy / healthcare / urban        │               │
+│  │  (30+ stateful in-memory endpoints) │               │
+│  └─────────────────────────────────────┘               │
+│                  ▼                                       │
+│  ┌─────────────────────────────────────┐               │
+│  │       SQLite / PostgreSQL DB        │               │
+│  │  analysis_sessions · agent_artifacts│               │
+│  │  state_logs                         │               │
+│  └─────────────────────────────────────┘               │
+└─────────────────────────────────────────────────────────┘
+                         │
+                         ▼
+              Google Gemini 2.5 Flash API
 ```
 
-### 3.2 Six AI Agents
-
-Each agent is a self-contained class that calls Google Gemini with a domain-specific prompt and returns a structured artifact saved to the database.
-
-| Agent | Gemini Model | Runs | What It Does |
-|---|---|---|---|
-| **Orchestrator** | gemini-1.5-pro | Wraps all | Coordinates pipeline, detects domain, merges outputs, saves artifacts |
-| **IngestionAgent** | gemini-1.5-flash | Parallel (step 1) | Extracts facts, named entities, numeric signals, confidence score |
-| **ResearchAgent** | gemini-1.5-flash | Parallel (step 1) | Verifies source credibility, adds Pakistan-specific business context, flags contradictions |
-| **AnalysisAgent** | gemini-1.5-flash | Sequential (step 2) | Maps extracted signals to domain KPIs, scores severity 1–10, quantifies PKR financial impact |
-| **DecisionAgent** | gemini-1.5-pro | Sequential (step 3) | Selects top-3 ranked actions from a domain-specific catalogue, builds complete API payloads |
-| **ExecutionAgent** | — (no LLM) | Sequential (step 4) | Reads state_before, calls Mock API, reads state_after, computes delta, logs notifications |
-
-**Execution order:**
-
-```
-Ingestion ──┐
-             ├── (asyncio.gather — parallel)
-Research  ──┘
-             ▼
-          Analysis  (sequential — needs ingestion + research output)
-             ▼
-          Decision  (sequential — needs analysis KPIs)
-             ▼
-          merge_artifacts()  (pure Python — no LLM)
-             ▼
-          Execution  (sequential — calls Mock API with decision payload)
-```
-
-### 3.3 Content Parsers
-
-The system accepts 6 input types. Each parser returns a normalized dict containing `clean_text`, `word_count`, `source_type`, and optionally extracted `entities`.
-
-| Parser | Input Type | How It Works |
-|---|---|---|
-| `TextParser` | `text` | Passes raw string through; strips whitespace |
-| `TextParser` | `url` | HTTP GET via `httpx`, HTML parsed with `BeautifulSoup`, extracts `<p>` text |
-| `PDFParser` | `pdf` | `pdfplumber` for digital PDFs; falls back to `pytesseract` OCR for scanned pages |
-| `DOCXParser` | `docx` | `python-docx` reads paragraphs and tables |
-| `CSVParser` | `csv` | `pandas` reads CSV, converts to a descriptive text summary with statistics |
-| `ExcelParser` | `excel` | `pandas` + `openpyxl` reads sheets, same summary format as CSV |
-
-### 3.4 REST API Endpoints
-
-#### Analysis
-
-| Method | Path | Description |
-|---|---|---|
-| `POST` | `/api/analyse/text` | Analyse raw text string |
-| `POST` | `/api/analyse/url` | Scrape and analyse a URL |
-| `POST` | `/api/analyse/file` | Upload and analyse a file (PDF/DOCX/CSV/Excel) |
-
-#### Session
-
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/api/session/{id}/trace` | Full agent trace — all 6 artifact JSONs for a session |
-| `GET` | `/api/session/{id}/status` | Current pipeline status (`pending`, `running`, `complete`, `failed`) |
-
-#### State
-
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/api/state/{domain}` | Read current Mock API state for a domain |
-| `POST` | `/api/state/reset` | Reset all domain states to factory defaults |
-
-#### Health
-
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/` | Root health check — returns API version and status |
-| `GET` | `/health` | Detailed health check |
-
-Interactive Swagger docs: `http://localhost:8000/docs`
-
-### 3.5 Mock API (30+ Endpoints)
-
-The Mock API simulates real enterprise systems. All state is held in memory and mutated by incoming requests. Use `POST /api/state/reset` to restore defaults.
-
-#### Logistics
-
-| Endpoint | Action |
-|---|---|
-| `POST /api/logistics/pricing/update` | Adjust delivery price per kg on a route |
-| `POST /api/logistics/routes/optimize` | Recompute route for fuel savings |
-| `POST /api/notifications/bulk_send` | Notify carriers/buyers of a change |
-| `POST /api/warehouse/reallocation` | Move SKUs between warehouse locations |
-
-#### Business
-
-| Endpoint | Action |
-|---|---|
-| `POST /api/crm/campaigns/create` | Launch a targeted marketing campaign |
-| `POST /api/catalog/pricing/update` | Update regional product pricing |
-| `POST /api/crm/workflows/trigger` | Trigger a CRM retention workflow |
-
-#### Finance
-
-| Endpoint | Action |
-|---|---|
-| `POST /api/finance/hedging/book` | Book an FX hedge contract (USD/PKR) |
-| `POST /api/portfolio/rebalance/flag` | Flag a portfolio for rebalancing |
-
-#### Policy
-
-| Endpoint | Action |
-|---|---|
-| `POST /api/compliance/alert` | Send a regulatory compliance alert |
-| `POST /api/duty/adjust` | Adjust import/export duty parameters |
-
-#### Healthcare
-
-| Endpoint | Action |
-|---|---|
-| `POST /api/procurement/emergency_order` | Place an emergency drug procurement order |
-| `POST /api/notifications/clinical_alert` | Alert clinical staff to a drug shortage or advisory |
-
-#### Urban
-
-| Endpoint | Action |
-|---|---|
-| `POST /api/operations/dispatch` | Dispatch a repair crew to a fault location |
-| `POST /api/communications/public_advisory` | Publish a public safety advisory via SMS/Twitter |
-
-### 3.6 Database Models
-
-Three tables are managed by SQLAlchemy (async). Tables are auto-created on startup.
-
-**`analysis_sessions`**
-
-| Column | Type | Description |
-|---|---|---|
-| `id` | UUID | Primary key |
-| `created_at` | DateTime | Session creation timestamp |
-| `domain` | String | Detected domain (e.g. `logistics`) |
-| `input_type` | String | `text`, `url`, `pdf`, `docx`, `csv`, `excel` |
-| `input_preview` | Text | First 500 chars of input |
-| `status` | String | `pending`, `running`, `complete`, `failed` |
-| `error_detail` | Text | Error message if status is `failed` |
-| `duration_seconds` | Float | Total pipeline runtime |
-
-**`agent_artifacts`**
-
-| Column | Type | Description |
-|---|---|---|
-| `id` | UUID | Primary key |
-| `session_id` | UUID | Foreign key → `analysis_sessions.id` |
-| `agent_name` | String | e.g. `ingestion`, `analysis`, `decision` |
-| `artifact_type` | String | e.g. `signals`, `kpi_impact`, `action_plan` |
-| `content` | JSON | Full structured output from the agent |
-| `created_at` | DateTime | Artifact creation timestamp |
-| `duration_seconds` | Float | Agent runtime |
-
-**`state_logs`**
-
-| Column | Type | Description |
-|---|---|---|
-| `id` | UUID | Primary key |
-| `session_id` | UUID | Foreign key → `analysis_sessions.id` |
-| `domain` | String | Affected domain |
-| `state_before` | JSON | Domain state snapshot before execution |
-| `state_after` | JSON | Domain state snapshot after execution |
-| `action_taken` | String | Mock API endpoint that was called |
-| `delta` | JSON | Computed diff between before and after |
-| `created_at` | DateTime | Log creation timestamp |
-
-### 3.7 Configuration & Environment Variables
-
-Copy `.env.example` to `.env` and fill in your values:
-
-```env
-# Required
-GEMINI_API_KEY=AIzaSy...
-
-# Database (defaults to SQLite if not set)
-DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/newsops
-
-# Server
-APP_HOST=0.0.0.0
-APP_PORT=8000
-DEBUG=true
-DEMO_MODE=false
-
-# Optional model overrides (all default to gemini-1.5-flash)
-MODEL_ORCHESTRATOR=gemini-1.5-pro
-MODEL_INGESTION=gemini-1.5-flash
-MODEL_ANALYSIS=gemini-1.5-flash
-MODEL_DECISION=gemini-1.5-pro
-MODEL_RESEARCH=gemini-1.5-flash
-MODEL_EXECUTION=gemini-1.5-flash
-MODEL_INPUT_PARSER=gemini-1.5-flash
-
-# Optional email notifications
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=you@example.com
-SMTP_PASSWORD=yourpassword
-```
+> For the full architecture diagram with sequence flows and component interactions, see [NEXUS_AI_ARCHITECTURE.md](./NEXUS_AI_ARCHITECTURE.md).
 
 ---
 
-## 4. Frontend — Nexus AI
+## 4. Tech Stack
 
-The Flutter app provides a polished UI for submitting content, watching the live agent pipeline, and reviewing AI-generated insights and actions.
+### Backend (`newsops/`)
 
-**Design:** Dark glassmorphic theme (purple / indigo / neon blue)
-**State management:** Provider (ChangeNotifier)
-**HTTP client:** Dio 5.4.3
-**Cross-platform:** Android, iOS, Web, Windows
+| Component | Technology | Version |
+|-----------|-----------|---------|
+| Web Framework | FastAPI | 0.115 |
+| ASGI Server | Uvicorn | latest |
+| AI / LLM | Google Gemini 2.5 Flash | via `google-genai` |
+| ORM | SQLAlchemy (async) | 2.0 |
+| Database (dev) | SQLite via aiosqlite | — |
+| Database (prod) | PostgreSQL via asyncpg | — |
+| PDF Parsing | pdfplumber + pytesseract | — |
+| Office Parsing | python-docx, pandas, openpyxl | — |
+| URL Scraping | httpx + BeautifulSoup4 | — |
+| Rate Limiting | slowapi | — |
+| Containerisation | Docker + docker-compose | — |
+| Testing | pytest + pytest-asyncio | — |
 
-### 4.1 Folder Structure
+### Frontend — Flutter App (`nexus_ai/`)
 
-```
-nexus_ai/
-├── lib/
-│   ├── main.dart                    # Entry point — MultiProvider + MaterialApp routes
-│   ├── core/
-│   │   ├── theme.dart               # App-wide dark theme, colors, text styles
-│   │   ├── constants.dart           # API base URL, timeout values, domain names
-│   │   └── utils.dart               # Date formatting, string helpers
-│   ├── data/
-│   │   ├── models/                  # Dart data classes (AnalysisResult, AgentArtifact, etc.)
-│   │   ├── api_service.dart         # Dio singleton — all HTTP calls to FastAPI
-│   │   └── file_service.dart        # file_picker integration for uploading files
-│   └── presentation/
-│       ├── providers/
-│       │   └── analysis_provider.dart  # Central ChangeNotifier — holds all app state
-│       ├── screens/                 # 13 screens (see section 4.2)
-│       └── widgets/                 # Shared UI components (cards, loaders, chips)
-├── integration_test/                # Flutter integration tests
-├── android/                         # Android-specific config
-├── ios/                             # iOS-specific config
-├── web/                             # Web support
-├── windows/                         # Windows desktop support
-└── pubspec.yaml                     # Flutter dependencies
-```
+| Component | Technology | Version |
+|-----------|-----------|---------|
+| Framework | Flutter / Dart | 3.19+ / 3.3+ |
+| State Management | Provider | 6.1.2 |
+| HTTP Client | Dio | 5.4.3 |
+| Fonts | google_fonts | — |
+| Animations | flutter_animate, shimmer | — |
+| File Picker | file_picker | — |
+| Charts | percent_indicator | — |
+| Platforms | Android, iOS, Web, Windows | — |
 
-### 4.2 Thirteen Screens
+### Web Frontend (`nexus_web/`)
 
-| Route | Screen | Purpose |
-|---|---|---|
-| `/splash` | **SplashScreen** | Shows logo; pings backend for connectivity |
-| `/onboarding` | **OnboardingScreen** | 3-page feature carousel for first-time users |
-| `/login` | **LoginScreen** | Email/password form (mocked authentication) |
-| `/home` | **HomeScreen** | Dashboard with recent analyses, bottom navigation bar |
-| `/analyze` | **AnalyzeScreen** | Input type selector, domain picker, content field, "Run AI Analysis" button |
-| `/progress` | **AgentProgressScreen** | Live agent progress steps; polls `/api/session/{id}/status` every 2 seconds |
-| `/insight` | **InsightScreen** | Severity score, key insight summary, business impact, KPIs affected |
-| `/actions` | **ActionsScreen** | Top recommended action + 2 alternatives with feasibility and impact scores |
-| `/simulate` | **SimulationScreen** | Animated execution log showing Mock API calls and before/after state |
-| `/results` | **ResultsScreen** | Final green checkmark, execution timeline, projected outcomes |
-| `/trace` | **TraceScreen** | Raw JSON output of all 6 agents (collapsible per agent) |
-| `/workflow` | **WorkflowScreen** | Visual decision flow diagram and agent execution timeline |
-| `/profile` | **ProfileScreen** | User settings, API endpoint config, "Reset Domain State" button |
-
-### 4.3 State Management
-
-`AnalysisProvider` (a `ChangeNotifier`) is the single source of truth for the app:
-
-| Property | Type | Description |
-|---|---|---|
-| `inputType` | String | Selected input type (`text`, `url`, `file`) |
-| `domain` | String | Selected domain override (or `auto`) |
-| `content` | String | Raw text or URL entered by the user |
-| `selectedFile` | File? | Picked file for upload |
-| `isLoading` | bool | True while the pipeline is running |
-| `sessionId` | String? | Session ID returned by FastAPI |
-| `result` | AnalysisResult? | Full pipeline response |
-| `agentProgressStep` | int | Current agent step index (0–5) |
-| `liveLogs` | List\<String\> | Real-time log lines from the backend |
-| `pollingTimer` | Timer? | 2-second polling timer for status updates |
+| Component | Technology |
+|-----------|-----------|
+| Markup | Vanilla HTML5 |
+| Styling | Vanilla CSS3 (glassmorphic dark theme) |
+| Logic | Vanilla JavaScript (ES6+) |
+| State | localStorage-based shared state |
+| HTTP | Custom `_fetch` wrapper (Dio-style) |
 
 ---
 
-## 5. End-to-End Data Flow
+## 5. AI Agents
+
+All agents are powered by **Google Gemini 2.5 Flash** and live in `newsops/agents/`.
+
+### Agent Pipeline
 
 ```
-User opens AnalyzeScreen
-  └─ selects input type, domain, enters content
-        └─ taps "Run AI Analysis"
-              └─ AnalysisProvider.runAnalysis()
-                    └─ ApiService: POST /api/analyse/{type}
-                                         │
-                              ┌──────────┴──────────┐
-                              │   FastAPI receives   │
-                              └──────────┬──────────┘
-                                         │
-                              Parser extracts clean_text
-                                         │
-                              AnalysisSession saved (status: pending)
-                                         │
-                              Orchestrator.run()
-                                         │
-                           ┌────────────┴────────────┐
-                     Ingestion Agent         Research Agent
-                      (parallel via asyncio.gather)
-                           └────────────┬────────────┘
-                                         │
-                                  Analysis Agent
-                                         │
-                                  Decision Agent
-                                         │
-                                 merge_artifacts()
-                                         │
-                                  Execution Agent
-                                  calls Mock API
-                                         │
-                           AnalysisResponse JSON returned
-                                         │
-              Flutter polls /api/session/{id}/status every 2s
-              (updates AgentProgressScreen live steps)
-                                         │
-                           status == "complete"
-                                         │
-                     Auto-navigate → InsightScreen
-                                         │
-                     User taps "Simulate Execution"
-                                         │
-                            SimulationScreen (animated)
-                                         │
-                              ResultsScreen (done)
-                                         │
-                          User can tap "View Agent Trace"
-                                         │
-                            TraceScreen (raw JSON)
+Input → [IngestionAgent + ResearchAgent] (parallel)
+              ↓ merged artifacts
+        [AnalysisAgent] (sequential)
+              ↓
+        [DecisionAgent] (sequential)
+              ↓
+        [merge_artifacts] (pure Python)
+              ↓
+        [ExecutionAgent] (calls Mock API)
+              ↓
+        Structured AnalysisResponse JSON
 ```
+
+### Agent Details
+
+#### 1. Ingestion Agent (`ingestion_agent.py`)
+- **Runs:** Parallel (step 1)
+- **Duration:** ~3–5 seconds
+- **Model:** gemini-2.5-flash
+- **What it does:** Reads the cleaned input text and extracts:
+  - Key facts and named entities
+  - Business signals (supply disruptions, price changes, policy shifts, etc.)
+  - Confidence score for each signal (0.0–1.0)
+  - Domain auto-classification
+
+#### 2. Research Agent (`research_agent.py`)
+- **Runs:** Parallel (step 1, alongside Ingestion)
+- **Duration:** ~3–5 seconds
+- **Model:** gemini-2.5-flash
+- **What it does:**
+  - Cross-checks claims for credibility
+  - Applies Pakistan-specific business context (PKR, SBP, LESCO, WAPDA, KSE, DRAP)
+  - Flags contradictions or unverified claims
+  - Produces a credibility score
+
+#### 3. Analysis Agent (`analysis_agent.py`)
+- **Runs:** Sequential (step 2), receives Ingestion + Research output
+- **Duration:** ~4–6 seconds
+- **Model:** gemini-2.5-flash
+- **What it does:**
+  - Maps extracted signals to domain-specific KPIs
+  - Scores overall severity on a 1–10 scale
+  - Quantifies estimated PKR financial impact
+  - Lists top affected KPIs with before/after projections
+
+#### 4. Decision Agent (`decision_agent.py`)
+- **Runs:** Sequential (step 3)
+- **Duration:** ~5–7 seconds
+- **Model:** gemini-2.5-flash
+- **What it does:**
+  - Selects top-3 ranked actions from the domain action catalog
+  - Assigns confidence score to each action
+  - Builds the exact API payload for each action (endpoint + body)
+  - Explains the rationale for the top recommendation
+
+#### 5. Merge Artifacts (pure Python, no LLM call)
+- **Runs:** Sequential (step 4)
+- **Duration:** <1 second
+- **What it does:** Merges all agent outputs into a single unified JSON structure keyed by `agent_name`
+
+#### 6. Execution Agent (`execution_agent.py`)
+- **Runs:** Sequential (step 5)
+- **Duration:** ~2–4 seconds
+- **What it does:**
+  - Reads the `decision_agent` output for the top-ranked action
+  - Captures `state_before` from Mock API state store
+  - Makes the HTTP call to the target Mock API endpoint
+  - Captures `state_after`
+  - Computes delta between before/after
+  - Saves state log to database
+
+### Mock Fallback
+
+Every agent has a corresponding entry in `agents/mock_responses.py` — deterministic JSON responses used when `GEMINI_API_KEY` is absent. This keeps the full pipeline functional for demos without an API key.
 
 ---
 
-## 6. Supported Domains
+## 6. Content Parsers
 
-| Domain | What the System Analyses | Example Actions Taken |
-|---|---|---|
-| **logistics** | Fuel price changes, shipment disruptions, carrier outages, route efficiency, warehouse load | Update delivery pricing, optimize routes, notify carriers |
-| **business** | Revenue trends, customer churn signals, regional sales drops, SKU performance | Launch CRM campaign, adjust catalog pricing, trigger retention workflow |
-| **finance** | PKR/USD rate moves, KSE market shocks, FX exposure, portfolio risk, SBP policy | Book FX hedge, flag portfolio for rebalancing |
-| **policy** | OGRA/SECP/SBP regulatory changes, gazette notifications, compliance deadlines, duty adjustments | Send compliance alert, adjust duty parameters |
-| **healthcare** | Drug shortages, DRAP advisories, WHO alerts, formulary changes, procurement gaps | Place emergency procurement order, alert clinical staff |
-| **urban** | Power outages (LESCO/WAPDA), water faults (WASA), traffic disruptions, CDA zone issues | Dispatch repair crew, publish public advisory |
+All parsers live in `newsops/parsers/` and implement the same interface: receive raw bytes / string / URL → return `clean_text`.
 
----
+| Parser | Input Types | Technology | Notes |
+|--------|------------|-----------|-------|
+| `text_parser.py` | `text`, `url` | httpx + BeautifulSoup | URL mode scrapes `<p>` tags |
+| `pdf_parser.py` | `pdf` | pdfplumber + pytesseract OCR | Handles scanned PDFs via Tesseract |
+| `docx_parser.py` | `docx` | python-docx | Extracts paragraphs + tables |
+| `csv_parser.py` | `csv` | pandas | Generates descriptive summary + stats |
+| `excel_parser.py` | `excel` | pandas + openpyxl | Multi-sheet text summaries |
 
-## 7. Installation & Setup
-
-### 7.1 Backend (Local)
-
-**Prerequisites:** Python 3.11+, Tesseract OCR, Poppler
-
-```bash
-# 1. Clone the repository
-git clone <repo-url>
-cd AI-SEEKHO-HACKTHON/newsops
-
-# 2. Create and activate virtual environment
-python -m venv .venv
-
-# Windows
-.venv\Scripts\activate
-# macOS / Linux
-source .venv/bin/activate
-
-# 3. Install dependencies
-pip install -r requirements.txt
-
-# 4. Configure environment
-cp .env.example .env
-# Open .env and add your GEMINI_API_KEY
-
-# 5. Start the server (SQLite used by default if DATABASE_URL is not set)
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
-```
-
-The API will be live at `http://localhost:8000`.
-Interactive docs at `http://localhost:8000/docs`.
-
-**Install Tesseract (required for PDF OCR):**
-- Windows: download installer from https://github.com/UB-Mannheim/tesseract/wiki
-- macOS: `brew install tesseract`
-- Linux: `sudo apt-get install tesseract-ocr`
-
-### 7.2 Backend (Docker)
-
-```bash
-cd AI-SEEKHO-HACKTHON/newsops
-
-# 1. Create .env file first
-cp .env.example .env
-# Add your GEMINI_API_KEY to .env
-
-# 2. Start production containers (API + PostgreSQL)
-docker compose up --build -d
-
-# 3. View logs
-docker compose logs -f newsops-api
-
-# 4. Check health
-curl http://localhost:8000/
-
-# 5. Stop containers
-docker compose down
-
-# 6. Development mode (hot reload, source mounted)
-docker compose -f docker-compose.dev.yml up --build
-
-# 7. Shell into container
-docker exec -it newsops-api bash
-```
-
-### 7.3 Frontend (Flutter)
-
-**Prerequisites:** Flutter SDK 3.19+, Dart 3.3+
-
-```bash
-cd AI-SEEKHO-HACKTHON/nexus_ai
-
-# 1. Install dependencies
-flutter pub get
-
-# 2. Update the API base URL in lib/core/constants.dart
-#    Set it to your backend address (default: http://localhost:8000)
-
-# 3. Run on connected device or emulator
-flutter run
-
-# 4. Build release APK (Android)
-flutter build apk --release
-
-# 5. Build for web
-flutter build web --release
-
-# 6. Build for Windows
-flutter build windows --release
-```
+`document_intelligence.py` (683 lines) acts as a smart router: it inspects the file MIME type and routes to the correct parser automatically.
 
 ---
 
-## 8. API Usage Examples
+## 7. REST API Reference
 
-### Analyse raw text
+Base URL: `http://localhost:8000`
 
-```bash
-curl -s -X POST http://localhost:8000/api/analyse/text \
-  -H "Content-Type: application/json" \
-  -d '{
-    "content": "Pakistan State Oil reports fuel prices have surged 18% this week following a PKR devaluation. Logistics companies across Lahore and Karachi are facing increased delivery costs."
-  }' | python -m json.tool
-```
+### Analysis Endpoints
 
-### Analyse a URL
+| Method | Path | Body | Description |
+|--------|------|------|-------------|
+| `POST` | `/api/analyse/text` | `{ "text": "...", "domain": "auto" }` | Analyse raw text |
+| `POST` | `/api/analyse/url` | `{ "url": "https://...", "domain": "auto" }` | Scrape and analyse a URL |
+| `POST` | `/api/analyse/file` | `multipart/form-data` (file + domain) | Upload and analyse a file |
 
-```bash
-curl -X POST http://localhost:8000/api/analyse/url \
-  -H "Content-Type: application/json" \
-  -d '{"url": "https://www.dawn.com/news/1234567"}'
-```
-
-### Analyse a file
-
-```bash
-# PDF
-curl -X POST http://localhost:8000/api/analyse/file \
-  -F "file=@report.pdf" \
-  -F "input_type=pdf"
-
-# CSV
-curl -X POST http://localhost:8000/api/analyse/file \
-  -F "file=@sales_data.csv" \
-  -F "input_type=csv"
-```
-
-### Get agent trace for a session
-
-```bash
-curl http://localhost:8000/api/session/<session_id>/trace
-```
-
-### Read and reset domain state
-
-```bash
-# Read current logistics state
-curl http://localhost:8000/api/state/logistics
-
-# Reset all domain states to defaults
-curl -X POST http://localhost:8000/api/state/reset
-```
-
-### Example response (abbreviated)
-
+**Response (all three):**
 ```json
 {
-  "session_id": "a1b2c3d4-...",
+  "session_id": "uuid",
   "domain": "logistics",
-  "severity": 8,
-  "severity_label": "Critical",
-  "insight": "An 18% fuel price surge will increase delivery costs by approximately PKR 2.4M per month across the Lahore–Karachi corridor.",
+  "severity_score": 8,
+  "key_insight": "LESCO outage will impact 3 Lahore warehouses...",
+  "kpis_affected": [
+    { "kpi": "delivery_time", "before": 4.2, "after": 6.1, "unit": "hours" }
+  ],
   "top_action": {
-    "action_id": "logistics_pricing_update",
-    "endpoint": "/api/logistics/pricing/update",
-    "feasibility_score": 9,
-    "impact_score": 8,
-    "payload": { "route_id": "R-001", "price_delta_pct": 12.0 }
+    "action": "routes/optimize",
+    "confidence": 0.91,
+    "rationale": "...",
+    "payload": { "zones": ["DHA", "Gulberg", "Johar"] }
   },
   "alternative_actions": [...],
-  "kpis_affected": ["fuel_ratio", "delivery_cost_per_kg", "route_efficiency"],
-  "before_state": { "fuel_ratio": 0.28, "delivery_cost_per_kg": 45.0 },
-  "after_state":  { "fuel_ratio": 0.31, "delivery_cost_per_kg": 50.4 },
-  "delta": { "fuel_ratio": "+0.03", "delivery_cost_per_kg": "+5.4" },
-  "notifications_sent": ["carrier_bulk_notification"],
-  "trace_url": "/api/session/a1b2c3d4-.../trace",
-  "duration_seconds": 14.3
+  "state_before": {...},
+  "state_after": {...},
+  "delta": {...},
+  "artifacts": { "ingestion": {...}, "research": {...}, ... },
+  "duration_seconds": 18.4
 }
 ```
 
+### Session Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/session/{id}/status` | Pipeline status: `pending \| running \| complete \| failed` |
+| `GET` | `/api/session/{id}/trace` | Full agent trace (all 6 artifact JSONs) |
+
+### State Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/state/{domain}` | Read current Mock API state for a domain |
+| `POST` | `/api/state/reset` | Reset all domain states to factory defaults |
+
+### Health Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/` | Root health check |
+| `GET` | `/health` | Detailed status with timestamp |
+
 ---
 
-## 9. Running Tests
+## 8. Mock APIs (Simulated Business Systems)
+
+The Mock API layer lives in `newsops/mock_api/`. It simulates 6 real-world business domains with 30+ endpoints backed by an in-memory state store (`state_store.py`). State persists across requests within a single server session.
+
+### Logistics Domain
+| Endpoint | Action |
+|----------|--------|
+| `POST /mock/logistics/pricing/update` | Update route pricing |
+| `POST /mock/logistics/routes/optimize` | Reroute delivery zones |
+| `POST /mock/logistics/notifications/bulk_send` | Bulk SMS/email to drivers |
+| `POST /mock/logistics/warehouse/reallocation` | Redistribute warehouse stock |
+
+### Business / Commerce Domain
+| Endpoint | Action |
+|----------|--------|
+| `POST /mock/business/crm/campaigns/create` | Launch targeted CRM campaign |
+| `POST /mock/business/catalog/pricing/update` | Update product catalog prices |
+| `POST /mock/business/crm/workflows/trigger` | Trigger CRM automation workflow |
+
+### Finance Domain
+| Endpoint | Action |
+|----------|--------|
+| `POST /mock/finance/hedging/book` | Book FX hedge position |
+| `POST /mock/finance/portfolio/rebalance/flag` | Flag portfolio for rebalance |
+
+### Policy / Regulatory Domain
+| Endpoint | Action |
+|----------|--------|
+| `POST /mock/policy/compliance/alert` | Issue compliance alert |
+| `POST /mock/policy/duty/adjust` | Adjust import/export duty rates |
+
+### Healthcare Domain
+| Endpoint | Action |
+|----------|--------|
+| `POST /mock/healthcare/procurement/emergency_order` | Trigger emergency medical supply order |
+| `POST /mock/healthcare/notifications/clinical_alert` | Send clinical staff alert |
+
+### Urban / Infrastructure Domain
+| Endpoint | Action |
+|----------|--------|
+| `POST /mock/urban/operations/dispatch` | Dispatch field crew |
+| `POST /mock/urban/communications/public_advisory` | Issue public advisory |
+
+---
+
+## 9. Database Models
+
+Three async SQLAlchemy tables (`newsops/database/models.py`):
+
+### `analysis_sessions`
+```
+id               UUID (PK)
+created_at       DateTime
+domain           String (logistics|business|finance|policy|healthcare|urban)
+input_type       String (text|url|file)
+input_preview    String (first 300 chars of input)
+status           String (pending|running|complete|failed)
+error_detail     String (nullable)
+duration_seconds Float (nullable)
+```
+
+### `agent_artifacts`
+```
+id               UUID (PK)
+session_id       UUID (FK → analysis_sessions.id)
+agent_name       String (ingestion|research|analysis|decision|execution)
+artifact_type    String
+content          JSON (full agent output)
+created_at       DateTime
+duration_seconds Float
+```
+
+### `state_logs`
+```
+id               UUID (PK)
+session_id       UUID (FK → analysis_sessions.id)
+domain           String
+state_before     JSON
+state_after      JSON
+action_taken     String
+delta            JSON
+created_at       DateTime
+```
+
+---
+
+## 10. Frontend — Flutter App
+
+**Location:** `nexus_ai/`  
+**Entry point:** `nexus_ai/lib/main.dart`
+
+### 13 Screens
+
+| Route | Screen | Purpose |
+|-------|--------|---------|
+| `/splash` | SplashScreen | Logo animation, backend connectivity check |
+| `/onboarding` | OnboardingScreen | 3-slide feature walkthrough (no API calls) |
+| `/login` | LoginScreen | Mocked email/password login (demo mode) |
+| `/home` | HomeScreen | Dashboard with recent analyses |
+| `/analyze` | AnalyzeScreen | Input type selector, domain picker, content entry |
+| `/progress` | AgentProgressScreen | Live agent step indicator, polls every 2s |
+| `/insight` | InsightScreen | Severity score, key insight, KPI impact table |
+| `/actions` | ActionsScreen | Top action + 2 alternatives with confidence scores |
+| `/simulate` | SimulationScreen | Animated execution log showing Mock API calls |
+| `/results` | ResultsScreen | Final success screen with projected outcomes |
+| `/trace` | TraceScreen | Collapsible raw JSON for all 6 agent artifacts |
+| `/workflow` | WorkflowScreen | Visual decision flow diagram |
+| `/profile` | ProfileScreen | API endpoint config, state reset, user settings |
+
+### State Management
+
+State flows through a single `AnalysisProvider` (ChangeNotifier, `nexus_ai/lib/presentation/providers/analysis_provider.dart`):
+
+| State Field | Type | Description |
+|-------------|------|-------------|
+| `inputType` | String | `text \| url \| file` |
+| `domain` | String | `auto \| logistics \| business \| ...` |
+| `content` | String | Raw input text or URL |
+| `selectedFile` | File? | Picked file reference |
+| `isLoading` | bool | Controls loading state across screens |
+| `sessionId` | String? | UUID returned by `/api/analyse/*` |
+| `result` | AnalysisResponse? | Full parsed response |
+| `agentProgressStep` | int | 0–5, drives the progress screen UI |
+| `liveLogs` | List\<String\> | Real-time log messages for progress screen |
+| `pollingTimer` | Timer? | 2-second polling timer for session status |
+
+**Key flow:** `runAnalysis()` → POST to API → sets `sessionId` → starts polling timer → timer calls `/api/session/{id}/status` every 2s → updates `agentProgressStep` → on `complete`, fetches full result → auto-navigates to InsightScreen.
+
+### App Theme
+
+Dark glassmorphic design (`nexus_ai/lib/core/theme/`):
+- Base: `#0D0D0D` background, `#1A1A2E` card surfaces
+- Accent: Cyan `#00F5FF` and deep purple gradients
+- Typography: Google Fonts (Rajdhani for headings, Inter for body)
+
+---
+
+## 11. Web Frontend — Vanilla JS
+
+**Location:** `nexus_web/`
+
+A zero-dependency fallback web interface sharing the same dark glassmorphic visual design as the Flutter app. No build step required — open `index.html` in any modern browser.
+
+| File | Purpose |
+|------|---------|
+| `index.html` | Login page with backend status indicator |
+| `home.html` | Dashboard with recent analyses |
+| `analyze.html` | Input type selector, content entry, domain picker |
+| `progress.html` | Live agent progress with step animations |
+| `insight.html` | Severity card, KPI impact grid, business impact |
+| `trace.html` | Raw JSON agent artifact viewer |
+| `profile.html` | Settings, API endpoint config |
+| `js/api.js` | HTTP client with `_fetch` wrapper (Dio-style error handling) |
+| `js/state.js` | localStorage-based shared state manager |
+| `css/app.css` | Dark glassmorphic CSS (matches Flutter theme) |
+
+---
+
+## 12. Supported Domains
+
+| Domain | Pakistan-Specific Context | Example KPIs |
+|--------|--------------------------|--------------|
+| **Logistics** | LESCO/WAPDA outages, carrier disruptions, Lahore/Karachi routes | delivery_time, fuel_cost, warehouse_utilization |
+| **Business** | Consumer demand shifts, retail pricing, import disruptions | revenue, conversion_rate, inventory_turnover |
+| **Finance** | PKR/USD rate, KSE-100, SBP policy, SECP regulations | fx_exposure, portfolio_risk, hedge_ratio |
+| **Policy** | OGRA energy policy, SECP/SBP circulars, gazette notifications | compliance_score, duty_rate, regulatory_risk |
+| **Healthcare** | DRAP drug approvals, WHO alerts, hospital supply chains | stockout_risk, procurement_lead_time, patient_capacity |
+| **Urban** | WASA water, LESCO power, CDA development, traffic incidents | infrastructure_uptime, dispatch_response_time |
+
+---
+
+## 13. End-to-End Data Flow
+
+```
+1. User submits input (text / URL / file) + selects domain
+        ↓
+2. POST /api/analyse/{text|url|file}
+        ↓
+3. Parser layer normalises input to clean_text
+        ↓
+4. AnalysisSession saved to DB (status: pending)
+        ↓
+5. Orchestrator.run(clean_text, domain) kicks off:
+        ↓
+6. [PARALLEL] IngestionAgent + ResearchAgent both call Gemini 2.5 Flash
+        ↓
+7. Artifacts merged → AnalysisAgent → Gemini 2.5 Flash
+        ↓
+8. AnalysisAgent output → DecisionAgent → Gemini 2.5 Flash
+        ↓
+9. merge_artifacts() combines all outputs
+        ↓
+10. ExecutionAgent reads top_action payload
+        ↓
+11. Capture state_before from Mock API state store
+        ↓
+12. HTTP call to Mock API endpoint (e.g. POST /mock/logistics/routes/optimize)
+        ↓
+13. Capture state_after, compute delta
+        ↓
+14. Save AgentArtifacts + StateLog to DB
+        ↓
+15. Session status set to: complete
+        ↓
+16. Frontend polling /api/session/{id}/status detects "complete"
+        ↓
+17. Frontend fetches full AnalysisResponse
+        ↓
+18. Auto-navigate: Insight → Actions → Simulate → Results screens
+```
+
+**Total pipeline time:** ~18–25 seconds (parallel agents + 5 sequential Gemini calls)
+
+---
+
+## 14. Setup & Installation
+
+### Prerequisites
+
+- Python 3.11+
+- Flutter 3.19+ / Dart 3.3+
+- Docker + Docker Compose (optional)
+- Tesseract OCR + Poppler (for PDF/OCR support)
+- Google Gemini API key (from https://aistudio.google.com/)
+
+### Backend — Local
 
 ```bash
 cd newsops
 
-# Run all tests
-pytest
+# Install dependencies
+pip install -r requirements.txt
 
-# Run with verbose output
-pytest -v
+# Configure environment
+cp .env.example .env
+# Edit .env and set GEMINI_API_KEY=your_key_here
 
-# Run a specific test file
-pytest tests/test_agents.py -v
+# Run database migrations
+python -c "from database.db import init_db; import asyncio; asyncio.run(init_db())"
 
-# Run with coverage report
-pytest --cov=. --cov-report=term-missing
+# Start the server
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-**Test files:**
+API docs available at: http://localhost:8000/docs
 
-| File | What It Tests |
-|---|---|
-| `tests/test_parsers.py` | Text, PDF, CSV, Excel parser output |
-| `tests/test_helpers.py` | Domain detection, UUID generation, delta computation |
-| `tests/test_database.py` | ORM session creation, artifact queries |
-| `tests/test_mock_api.py` | Mock endpoint responses and state mutations |
-| `tests/test_agents.py` | Agent orchestration (parallel + sequential execution) |
-| `tests/test_pipeline.py` | Full end-to-end pipeline run |
-| `tests/test_routers.py` | FastAPI route handlers via TestClient |
-| `tests/test_docker.py` | Docker image build validation |
+### Backend — Docker
+
+```bash
+cd newsops
+
+# Copy and configure environment
+cp .env.example .env
+# Edit .env — set GEMINI_API_KEY
+
+# Build and start
+docker-compose up --build
+
+# Or run in background
+docker-compose up -d
+```
+
+### Frontend — Flutter App
+
+```bash
+cd nexus_ai
+
+# Install dependencies
+flutter pub get
+
+# Point to backend (edit lib/core/constants/api_constants.dart)
+# Default: http://10.0.2.2:8000 (Android emulator)
+# For web: http://localhost:8000
+
+# Run on device / emulator
+flutter run
+
+# Build for web
+flutter build web
+```
+
+### Web Frontend — Vanilla
+
+```bash
+cd nexus_web
+
+# Open directly — no build required
+# Just open index.html in any browser
+# Or serve via any static server:
+python -m http.server 3000
+```
+
+Update `BASE_URL` in `nexus_web/js/api.js` to point at your backend.
 
 ---
 
-## Tech Stack Summary
+## 15. Environment Variables
 
-| Layer | Technology |
-|---|---|
-| Backend framework | FastAPI 0.115 + Uvicorn (ASGI) |
-| AI / LLM | Google Gemini 1.5 Flash & Pro (`google-genai`) |
-| Database ORM | SQLAlchemy 2.0 (async) + `aiosqlite` / `asyncpg` |
-| PDF / OCR | `pdfplumber`, `pytesseract`, `pdf2image`, `pymupdf` |
-| Document parsing | `python-docx`, `pandas`, `openpyxl` |
-| Web scraping | `httpx`, `beautifulsoup4`, `lxml` |
-| Containerisation | Docker + Docker Compose |
-| Frontend | Flutter 3.19 + Dart 3.3 |
-| State management | Provider 6.1.2 (ChangeNotifier) |
-| HTTP client (Flutter) | Dio 5.4.3 |
-| UI libraries | `google_fonts`, `flutter_animate`, `shimmer`, `percent_indicator` |
-| Testing | `pytest`, `pytest-asyncio`, Flutter integration_test |
+All variables go in `newsops/.env` (copy from `.env.example`):
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `GEMINI_API_KEY` | Yes | Google AI Studio API key |
+| `DATABASE_URL` | No | SQLite (default) or PostgreSQL connection string |
+| `SMTP_HOST` | No | SMTP server hostname |
+| `SMTP_PORT` | No | SMTP port (default: 587) |
+| `SMTP_USER` | No | SMTP username |
+| `SMTP_PASSWORD` | No | SMTP password |
+
+Without `GEMINI_API_KEY`, the system auto-falls back to mock responses for all agents.
+
+---
+
+## 16. Running Tests
+
+```bash
+cd newsops
+
+# Install test dependencies
+pip install -r requirements.txt
+
+# Run full test suite
+pytest
+
+# Run with coverage
+pytest --cov=. --cov-report=term-missing
+
+# Run a specific test file
+pytest tests/test_agents.py -v
+pytest tests/test_pipeline.py -v
+```
+
+| Test File | What It Tests |
+|-----------|--------------|
+| `test_agents.py` | Agent orchestration, parallel execution, mock fallback |
+| `test_parsers.py` | PDF, CSV, Excel, DOCX, URL parser output |
+| `test_database.py` | ORM session creation, artifact saves, queries |
+| `test_pipeline.py` | Full end-to-end pipeline run |
+| `test_routers.py` | FastAPI route handlers, request validation |
+| `test_mock_api.py` | Mock endpoint responses, state mutation |
+| `test_helpers.py` | Domain detection, delta computation, UUID generation |
+| `test_docker.py` | Docker image build validation |
+
+---
+
+## 17. Project Structure
+
+```
+AI-SEEKHO-HACKTHON/
+├── README.md                        ← This file
+├── NEXUS_AI_ARCHITECTURE.md         ← Detailed architecture reference
+│
+├── newsops/                         ← Python FastAPI Backend
+│   ├── main.py                      ← App entry point, CORS, rate-limiting
+│   ├── config.py                    ← Env vars, domain/model constants
+│   ├── requirements.txt             ← 26 Python dependencies
+│   ├── Dockerfile
+│   ├── docker-compose.yml
+│   ├── agents/
+│   │   ├── orchestrator.py          ← Pipeline runner (parallel + sequential)
+│   │   ├── ingestion_agent.py       ← Fact extraction agent
+│   │   ├── research_agent.py        ← Credibility verification agent
+│   │   ├── analysis_agent.py        ← KPI impact scoring agent
+│   │   ├── decision_agent.py        ← Action ranking agent
+│   │   ├── execution_agent.py       ← Mock API executor agent
+│   │   └── mock_responses.py        ← Fallback deterministic responses
+│   ├── parsers/
+│   │   ├── document_intelligence.py ← Smart MIME-type parser router
+│   │   ├── text_parser.py
+│   │   ├── pdf_parser.py
+│   │   ├── docx_parser.py
+│   │   ├── csv_parser.py
+│   │   └── excel_parser.py
+│   ├── routers/
+│   │   ├── analysis.py              ← POST /api/analyse/*
+│   │   ├── session.py               ← GET /api/session/*
+│   │   └── state.py                 ← GET/POST /api/state/*
+│   ├── pipelines/
+│   │   └── pipeline.py              ← parse → save session → orchestrate
+│   ├── mock_api/
+│   │   ├── endpoints.py             ← 30+ Mock API route handlers
+│   │   └── state_store.py           ← In-memory domain KPI state
+│   ├── database/
+│   │   ├── db.py                    ← Async SQLAlchemy engine + session
+│   │   └── models.py                ← ORM models (3 tables)
+│   ├── schemas/
+│   │   ├── input_schemas.py         ← Pydantic request models
+│   │   └── output_schemas.py        ← Pydantic response models
+│   ├── utils/
+│   │   ├── helpers.py               ← UUID, domain detection, delta compute
+│   │   └── logger.py                ← Session-scoped structured logger
+│   └── tests/
+│       ├── conftest.py
+│       ├── fixtures/
+│       └── test_*.py (8 test files)
+│
+├── nexus_ai/                        ← Flutter Mobile/Web Frontend
+│   ├── pubspec.yaml
+│   ├── lib/
+│   │   ├── main.dart                ← App entry, MultiProvider, routing
+│   │   ├── core/
+│   │   │   ├── constants/           ← API URLs, app constants
+│   │   │   ├── theme/               ← Dark glassmorphic theme
+│   │   │   └── utils/               ← Formatters, connectivity
+│   │   ├── data/
+│   │   │   ├── models/              ← DTOs for all API contracts
+│   │   │   └── services/            ← Dio API client, file picker, auth
+│   │   └── presentation/
+│   │       ├── providers/           ← AnalysisProvider, AuthProvider
+│   │       ├── screens/             ← 13 app screens
+│   │       └── widgets/             ← Reusable UI components
+│   └── android/ ios/ web/ windows/  ← Platform configs
+│
+└── nexus_web/                       ← Vanilla JS Web Frontend (fallback)
+    ├── index.html
+    ├── home.html
+    ├── analyze.html
+    ├── progress.html
+    ├── insight.html
+    ├── trace.html
+    ├── profile.html
+    ├── js/
+    │   ├── api.js                   ← HTTP client wrapper
+    │   └── state.js                 ← localStorage state manager
+    └── css/
+        └── app.css                  ← Dark glassmorphic styles
+```
+
+---
+
+## Hackathon Submission
+
+- **Event:** AI Seekho Hackathon
+- **Team / Builder:** Aafreen Zahra Kazmi
+- **Contact:** aafreenzk1214@gmail.com
+- **GitHub:** [AAFREEN-ZAHRA-KAZMI01/NEXUS-AI-SEEKHO](https://github.com/AAFREEN-ZAHRA-KAZMI01/NEXUS-AI-SEEKHO)

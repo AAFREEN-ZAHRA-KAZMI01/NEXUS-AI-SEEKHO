@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nexus AI — Analyze</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div class="app-layout">
+
+  <aside class="sidebar" id="sidebar-mount"></aside>
+
+  <div class="main-wrapper">
+
+    <div class="topbar">
+      <div class="topbar-title">
+        <h1>Analyze Content</h1>
+        <p>Upload or paste content — AI pipeline will extract insights automatically</p>
+      </div>
+      <div class="topbar-actions">
+        <button class="btn btn-secondary" onclick="showSamples()">💡 Try a Sample</button>
+        <button id="run-btn" class="btn btn-primary" onclick="runAnalysis()" disabled>
+          🚀 Run AI Analysis
+        </button>
+      </div>
+    </div>
+
+    <div class="page-content">
+
+      <!-- 2-column layout -->
+      <div class="col-wider">
+
+        <!-- LEFT: Input -->
+        <div style="display:flex;flex-direction:column;gap:20px;">
+
+          <!-- Input Type Cards -->
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Choose Input Type</div>
+                <div class="card-subtitle">Select how you want to provide the content</div>
+              </div>
+            </div>
+            <div class="input-type-grid">
+              <div class="input-type-card active" id="card-text" onclick="setInputType('text')">
+                <div class="input-type-icon" style="background:rgba(139,92,246,0.15);color:var(--purple);">📝</div>
+                <div class="input-type-label">Paste Article</div>
+                <div class="text-sm text-muted" style="font-size:10px;">Text / News</div>
+              </div>
+              <div class="input-type-card" id="card-url" onclick="setInputType('url')">
+                <div class="input-type-icon" style="background:rgba(99,102,241,0.15);color:var(--indigo);">🌐</div>
+                <div class="input-type-label">Website URL</div>
+                <div class="text-sm text-muted" style="font-size:10px;">Auto-scrape</div>
+              </div>
+              <div class="input-type-card" id="card-pdf" onclick="setInputType('pdf')">
+                <div class="input-type-icon" style="background:rgba(14,165,233,0.15);color:var(--blue);">📄</div>
+                <div class="input-type-label">Upload PDF</div>
+                <div class="text-sm text-muted" style="font-size:10px;">PDF / DOCX</div>
+              </div>
+              <div class="input-type-card" id="card-excel" onclick="setInputType('excel')">
+                <div class="input-type-icon" style="background:rgba(6,182,212,0.15);color:#06B6D4;">📊</div>
+                <div class="input-type-label">Dashboard Data</div>
+                <div class="text-sm text-muted" style="font-size:10px;">CSV / Excel</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Input Area -->
+          <div class="card">
+            <div class="card-title mb-16">Input Content</div>
+
+            <!-- Text -->
+            <div id="input-text">
+              <label class="form-label">Paste your content</label>
+              <textarea id="text-content" class="input textarea"
+                style="min-height:200px;resize:vertical;"
+                placeholder="Paste news article, business report, financial data, or any text…"
+                oninput="validateInput()"></textarea>
+              <div class="text-sm text-muted mt-6" id="char-count">0 characters</div>
+            </div>
+
+            <!-- URL -->
+            <div id="input-url" class="hidden">
+              <label class="form-label">Website URL</label>
+              <div class="input-with-icon">
+                <span class="input-icon">🔗</span>
+                <input id="url-content" type="url" class="input"
+                  placeholder="https://www.dawn.com/news/…"
+                  oninput="validateInput()">
+              </div>
+              <div class="text-sm text-muted mt-6">The AI will scrape and analyze the page content</div>
+            </div>
+
+            <!-- File -->
+            <div id="input-file" class="hidden">
+              <div id="upload-zone" class="upload-zone" onclick="document.getElementById('file-picker').click()">
+                <div class="upload-zone-icon">☁</div>
+                <div class="upload-zone-text">Drop files here or <span>browse</span></div>
+                <div class="upload-zone-sub">Supports PDF, DOCX, CSV, Excel (.xlsx)</div>
+              </div>
+              <div id="file-selected-row" class="file-selected-row hidden">
+                <div class="file-icon-box">📄</div>
+                <div style="flex:1;min-width:0;">
+                  <div style="font-size:13px;font-weight:600;" class="truncate" id="file-name">—</div>
+                  <div class="text-sm text-muted" id="file-size">—</div>
+                </div>
+                <button class="btn btn-danger btn-sm" onclick="clearFile()">Remove</button>
+              </div>
+              <input id="file-picker" type="file" accept=".pdf,.docx,.doc,.csv,.xlsx,.xls" class="hidden" onchange="handleFile(this)">
+            </div>
+          </div>
+
+          <!-- Error -->
+          <div id="run-error" class="alert alert-error hidden">
+            <span>⚠</span><span id="run-error-msg">Error.</span>
+          </div>
+
+        </div>
+
+        <!-- RIGHT: Options -->
+        <div style="display:flex;flex-direction:column;gap:20px;">
+
+          <!-- Domain -->
+          <div class="card">
+            <div class="card-title mb-6">Target Domain</div>
+            <div class="card-subtitle mb-16">Select the business domain for contextual analysis</div>
+            <div class="domain-chips">
+              <div class="domain-chip" data-domain="logistics"  onclick="setDomain('logistics')">🚚 Logistics</div>
+              <div class="domain-chip" data-domain="business"   onclick="setDomain('business')">🏪 Business</div>
+              <div class="domain-chip active" data-domain="finance" onclick="setDomain('finance')">📈 Finance</div>
+              <div class="domain-chip" data-domain="policy"     onclick="setDomain('policy')">🏛 Policy</div>
+              <div class="domain-chip" data-domain="healthcare" onclick="setDomain('healthcare')">🏥 Healthcare</div>
+              <div class="domain-chip" data-domain="urban"      onclick="setDomain('urban')">🌆 Urban</div>
+            </div>
+          </div>
+
+          <!-- AI Options -->
+          <div class="card" style="padding:0;overflow:hidden;">
+            <div class="card-header" style="padding:16px 18px;">
+              <div class="card-title">Analysis Options</div>
+            </div>
+            <div class="option-row">
+              <span class="option-icon">📈</span>
+              <div class="option-info">
+                <div class="option-label">Business Impact</div>
+                <div class="option-sub">Analyze effects on operations</div>
+              </div>
+              <label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+            </div>
+            <div class="option-row">
+              <span class="option-icon">🛡</span>
+              <div class="option-info">
+                <div class="option-label">Risk Analysis</div>
+                <div class="option-sub">Identify potential risks</div>
+              </div>
+              <label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+            </div>
+            <div class="option-row">
+              <span class="option-icon">🏦</span>
+              <div class="option-info">
+                <div class="option-label">Financial Impact</div>
+                <div class="option-sub">Calculate monetary changes</div>
+              </div>
+              <label class="toggle"><input type="checkbox"><span class="toggle-slider"></span></label>
+            </div>
+            <div class="option-row">
+              <span class="option-icon">⚖</span>
+              <div class="option-info">
+                <div class="option-label">Policy Analysis</div>
+                <div class="option-sub">Check compliance factors</div>
+              </div>
+              <label class="toggle"><input type="checkbox"><span class="toggle-slider"></span></label>
+            </div>
+          </div>
+
+          <!-- How it works -->
+          <div class="card" style="background:rgba(0,229,204,0.03);border-color:rgba(0,229,204,0.15);">
+            <div class="card-title mb-12" style="color:var(--primary);">How it works</div>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+              <div class="flex items-center gap-12">
+                <div style="width:28px;height:28px;border-radius:50%;background:rgba(0,229,204,0.15);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--primary);flex-shrink:0;">1</div>
+                <div class="text-sm text-muted">Content ingested &amp; parsed by AI</div>
+              </div>
+              <div class="flex items-center gap-12">
+                <div style="width:28px;height:28px;border-radius:50%;background:rgba(0,229,204,0.15);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--primary);flex-shrink:0;">2</div>
+                <div class="text-sm text-muted">6 agents extract signals &amp; insights</div>
+              </div>
+              <div class="flex items-center gap-12">
+                <div style="width:28px;height:28px;border-radius:50%;background:rgba(0,229,204,0.15);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--primary);flex-shrink:0;">3</div>
+                <div class="text-sm text-muted">Action plan generated &amp; ready</div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Sample Modal -->
+<div class="overlay" id="samples-overlay" onclick="closeSamplesOverlay(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <span style="font-size:20px;">💡</span>
+      <span style="font-size:15px;font-weight:700;">Pakistani Scenario Samples</span>
+      <button class="btn btn-secondary btn-sm" onclick="document.getElementById('samples-overlay').classList.remove('show')" style="margin-left:auto;">✕</button>
+    </div>
+    <div class="modal-body" id="samples-list"></div>
+  </div>
+</div>
+
+<script src="js/state.js"></script>
+<script src="js/api.js"></script>
+<script src="js/sidebar.js"></script>
+<script>
+if (!State.getUser().email) window.location.href = 'index.html';
+renderSidebar('analyze');
+
+const SAMPLES = [
+  { domain:'finance',    emoji:'📈', label:'KSE-100 Crash',
+    text:'KSE-100 index dropped 847 points today as foreign investors pulled $200M out of Pakistani equities following IMF loan uncertainty. The index closed at 71,243 — its lowest since March. SECP has called an emergency board meeting. Trading volume collapsed to 180M shares vs a 30-day average of 420M. Foreign portfolio outflow reached $200M in a single session.' },
+  { domain:'policy',     emoji:'🏛️', label:'OGRA Fuel Notification',
+    text:'OGRA has issued emergency notification ref. OGRA/S(Pricing)/2024-847 increasing petrol price by PKR 12.74 per litre and HSD diesel by PKR 9.50 per litre effective midnight tonight. The notification cites global crude oil movement and PKR depreciation as primary drivers. All logistics operators must revise freight contracts within 48 hours or face regulatory penalties under the Petroleum Act 1934.' },
+  { domain:'logistics',  emoji:'🚢', label:'KPT Port Congestion',
+    text:'Karachi Port Trust (KPT) reports 47 vessels awaiting berth as port congestion reaches a 3-year high. Average container dwell time is now 11.2 days vs the target of 4 days. Container throughput dropped 22% this week to 18,400 TEUs. Freight costs surged 18% since last month. Auto manufacturers report production line stoppages due to CKD kit delays.' },
+  { domain:'healthcare', emoji:'🏥', label:'DRAP Drug Shortage',
+    text:'DRAP has confirmed a critical shortage of Insulin Glargine 100IU/ml at 14 public hospitals across Lahore and Rawalpindi. An estimated 12,000 insulin-dependent diabetic patients are at immediate risk. Three pharmaceutical manufacturers suspended production citing raw material import restrictions. WHO Pakistan office has been formally notified.' },
+  { domain:'urban',      emoji:'⚡', label:'LESCO Grid Fault',
+    text:'LESCO reports an 18-hour unplanned power outage affecting zones DHA-4, Gulberg-3, Model Town, and Johar Town in Lahore. An estimated 340,000 households and 4,200 commercial units are impacted. Grid fault identified at 132kV Kot Lakhpat substation — feeder 6 breaker failure. Industrial estates report PKR 45M/hour production loss.' },
+  { domain:'business',   emoji:'🏪', label:'Regional Sales Decline',
+    text:'Q3 regional sales report for Karachi division shows revenue down 31% versus Q2 — from PKR 8.5M to PKR 5.87M. Monthly order volume fell from 1,240 to 856. Customer churn rate spiked to 18.4% (benchmark: 5%). Top 3 churned SKUs: SKU-1042 (Premium Basmati), SKU-2287 (Cooking Oil 5L), SKU-3391 (Detergent Bulk).' },
+];
+
+let currentType = State.getInputType() || 'text';
+let currentDomain = State.getDomain() || 'finance';
+let selectedFile = null;
+
+setInputType(currentType);
+setDomain(currentDomain);
+
+function setInputType(type) {
+  currentType = type;
+  State.setInputType(type);
+  ['text','url','pdf','excel'].forEach(t => {
+    document.getElementById(`card-${t}`)?.classList.remove('active');
+    const inputEl = t === 'pdf' || t === 'excel' ? 'input-file' : `input-${t}`;
+    document.getElementById(inputEl)?.classList.add('hidden');
+  });
+  document.getElementById(`card-${type}`)?.classList.add('active');
+  if (type === 'text')  document.getElementById('input-text').classList.remove('hidden');
+  if (type === 'url')   document.getElementById('input-url').classList.remove('hidden');
+  if (type === 'pdf' || type === 'excel') document.getElementById('input-file').classList.remove('hidden');
+  validateInput();
+}
+
+function setDomain(domain) {
+  currentDomain = domain;
+  State.setDomain(domain);
+  document.querySelectorAll('.domain-chip').forEach(c =>
+    c.classList.toggle('active', c.dataset.domain === domain));
+}
+
+function validateInput() {
+  const btn = document.getElementById('run-btn');
+  let valid = false;
+  if (currentType === 'text') {
+    const v = document.getElementById('text-content').value.trim();
+    valid = v.length > 10;
+    document.getElementById('char-count').textContent = v.length + ' characters';
+  } else if (currentType === 'url') {
+    const v = document.getElementById('url-content').value.trim();
+    valid = v.startsWith('http://') || v.startsWith('https://');
+  } else {
+    valid = selectedFile !== null;
+  }
+  btn.disabled = !valid;
+}
+
+function handleFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  selectedFile = file;
+  document.getElementById('file-name').textContent = file.name;
+  document.getElementById('file-size').textContent = formatBytes(file.size);
+  document.getElementById('upload-zone').classList.add('hidden');
+  document.getElementById('file-selected-row').classList.remove('hidden');
+  validateInput();
+}
+function clearFile() {
+  selectedFile = null;
+  document.getElementById('file-picker').value = '';
+  document.getElementById('upload-zone').classList.remove('hidden');
+  document.getElementById('file-selected-row').classList.add('hidden');
+  validateInput();
+}
+function formatBytes(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+  return (b/1048576).toFixed(1) + ' MB';
+}
+
+function showSamples() {
+  document.getElementById('samples-list').innerHTML = SAMPLES.map((s, i) => `
+    <div class="sample-item" onclick="applySample(${i})">
+      <div class="sample-emoji">${s.emoji}</div>
+      <div class="sample-info">
+        <div class="sample-title">${s.label}</div>
+        <div class="sample-preview">${s.text.substring(0,90)}…</div>
+      </div>
+      <span class="badge badge-blue">${s.domain}</span>
+    </div>`).join('');
+  document.getElementById('samples-overlay').classList.add('show');
+}
+function closeSamplesOverlay(e) {
+  if (e.target === document.getElementById('samples-overlay'))
+    document.getElementById('samples-overlay').classList.remove('show');
+}
+function applySample(i) {
+  const s = SAMPLES[i];
+  setInputType('text');
+  setDomain(s.domain);
+  document.getElementById('text-content').value = s.text;
+  document.getElementById('char-count').textContent = s.text.length + ' characters';
+  validateInput();
+  document.getElementById('samples-overlay').classList.remove('show');
+}
+
+async function runAnalysis() {
+  const btn    = document.getElementById('run-btn');
+  const errEl  = document.getElementById('run-error');
+  errEl.classList.add('hidden');
+  btn.disabled = true;
+  btn.innerHTML = '⏳ Starting pipeline…';
+  try {
+    let data;
+    if (currentType === 'text') {
+      data = await Api.analyseText(document.getElementById('text-content').value.trim(), currentDomain);
+    } else if (currentType === 'url') {
+      data = await Api.analyseUrl(document.getElementById('url-content').value.trim(), currentDomain);
+    } else {
+      data = await Api.analyseFile(selectedFile, currentDomain);
+    }
+    State.setSessionId(data.session_id || data.id || data.sessionId);
+    window.location.href = 'progress.html';
+  } catch (e) {
+    document.getElementById('run-error-msg').textContent = e.message.includes('fetch')
+      ? 'Cannot reach backend. Is Docker running on localhost:8000?'
+      : 'Error: ' + e.message;
+    errEl.classList.remove('hidden');
+    btn.disabled = false;
+    btn.innerHTML = '🚀 Run AI Analysis';
+  }
+}
+</script>
+</body>
+</html>

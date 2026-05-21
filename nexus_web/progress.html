@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nexus AI — Processing</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div class="app-layout">
+
+  <aside class="sidebar" id="sidebar-mount"></aside>
+
+  <div class="main-wrapper">
+
+    <div class="topbar">
+      <div class="topbar-title">
+        <h1>AI Pipeline Running</h1>
+        <p id="status-sub">6 specialized agents processing your content</p>
+      </div>
+      <div class="topbar-actions">
+        <div class="flex items-center gap-12">
+          <span id="pct-label" style="font-size:20px;font-weight:700;color:var(--primary);">0%</span>
+          <div style="width:160px;">
+            <div class="prog-track">
+              <div class="prog-fill" id="progress-fill" style="width:0%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="page-content">
+
+      <!-- Agent Grid -->
+      <div class="section-label">Active Agents</div>
+      <div class="agent-grid mb-24" id="agent-grid">
+        <!-- injected -->
+      </div>
+
+      <!-- Log + Info row -->
+      <div class="content-grid">
+
+        <!-- Live Log -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Live Trace Log</div>
+            <div class="flex items-center gap-8">
+              <div style="width:8px;height:8px;border-radius:50%;background:var(--primary);animation:pulse 1.5s infinite;"></div>
+              <span class="text-sm text-muted">Live</span>
+            </div>
+          </div>
+          <div class="live-log" id="live-log" style="height:280px;">
+            <div class="log-line">Initializing pipeline…</div>
+          </div>
+        </div>
+
+        <!-- Info Panel -->
+        <div style="display:flex;flex-direction:column;gap:16px;">
+          <div class="card card-glow">
+            <div class="card-title mb-8" style="color:var(--primary);">Pipeline Status</div>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+              <div class="flex justify-between">
+                <span class="text-sm text-muted">Session ID</span>
+                <span class="text-sm" id="session-id-label" style="font-family:monospace;">—</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-sm text-muted">Domain</span>
+                <span class="text-sm" id="domain-label">—</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-sm text-muted">Status</span>
+                <span id="status-badge" class="badge badge-blue">Running</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-sm text-muted">Step</span>
+                <span class="text-sm" id="step-label">0 / 6</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title mb-8">AI Agents</div>
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              <div class="flex items-center gap-8"><span>🎯</span><span class="text-sm">Orchestrator</span><span class="text-sm text-muted" style="margin-left:auto;">Gemini 1.5 Pro</span></div>
+              <div class="flex items-center gap-8"><span>📥</span><span class="text-sm">Ingestion</span><span class="text-sm text-muted" style="margin-left:auto;">Gemini Flash</span></div>
+              <div class="flex items-center gap-8"><span>🔬</span><span class="text-sm">Analysis</span><span class="text-sm text-muted" style="margin-left:auto;">Gemini 1.5 Pro</span></div>
+              <div class="flex items-center gap-8"><span>⚖️</span><span class="text-sm">Decision</span><span class="text-sm text-muted" style="margin-left:auto;">Gemini 1.5 Pro</span></div>
+              <div class="flex items-center gap-8"><span>🔍</span><span class="text-sm">Research</span><span class="text-sm text-muted" style="margin-left:auto;">Gemini Flash</span></div>
+              <div class="flex items-center gap-8"><span>⚡</span><span class="text-sm">Execution</span><span class="text-sm text-muted" style="margin-left:auto;">Python Exec</span></div>
+            </div>
+          </div>
+
+          <div id="error-box" class="hidden">
+            <div class="alert alert-error">
+              <span>⚠</span>
+              <div>
+                <div style="font-weight:600;margin-bottom:4px;">Pipeline Failed</div>
+                <div id="error-msg" class="text-sm"></div>
+              </div>
+            </div>
+            <button class="btn btn-secondary btn-full mt-8" onclick="window.location.href='analyze.html'">← Try Again</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+@keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+</style>
+
+<script src="js/state.js"></script>
+<script src="js/api.js"></script>
+<script src="js/sidebar.js"></script>
+<script>
+if (!State.getUser().email) window.location.href = 'index.html';
+renderSidebar('analyze');
+
+const sessionId = State.getSessionId();
+if (sessionId) {
+  document.getElementById('session-id-label').textContent = sessionId.substring(0,16) + '…';
+  document.getElementById('domain-label').textContent =
+    (State.getDomain() || 'finance').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+const AGENTS = [
+  { emoji:'📥', name:'Ingestion Agent',    model:'Gemini 1.5 Flash' },
+  { emoji:'🔬', name:'Analysis Agent',     model:'Gemini 1.5 Pro' },
+  { emoji:'⚖️',  name:'Decision Agent',     model:'Gemini 1.5 Pro' },
+  { emoji:'🔍', name:'Research Agent',     model:'Gemini 1.5 Flash' },
+  { emoji:'⚡', name:'Execution Agent',    model:'Python Executor' },
+  { emoji:'🎯', name:'Orchestrator',       model:'Gemini 1.5 Pro' },
+];
+
+const LOG_MSGS = [
+  'Fetching content from source…',
+  'Parsing document structure and metadata…',
+  'Extracting key signals and named entities…',
+  'Running semantic analysis on content…',
+  'Computing business impact score…',
+  'Identifying KPI correlations…',
+  'Generating autonomous action recommendations…',
+  'Simulating execution pathways…',
+  'Compiling master intelligence brief…',
+  'Finalizing insights report…',
+];
+
+let logIndex = 0;
+
+function renderAgents(activeStep) {
+  document.getElementById('agent-grid').innerHTML = AGENTS.map((a, i) => {
+    let cls = '', statusLabel = 'Waiting', statusCls = 'pending';
+    if (i < activeStep) { cls = 'done';   statusLabel = '✓ Complete'; statusCls = 'done'; }
+    if (i === activeStep){ cls = 'active'; statusLabel = '● Processing…'; statusCls = 'active'; }
+    return `
+      <div class="agent-card ${cls}">
+        <div class="agent-emoji">${a.emoji}</div>
+        <div class="agent-name">${a.name}</div>
+        <div class="agent-model">${a.model}</div>
+        <div class="agent-status-label ${statusCls}">${statusLabel}</div>
+      </div>`;
+  }).join('');
+  document.getElementById('step-label').textContent = Math.min(activeStep, 6) + ' / 6';
+}
+
+function setProgress(pct) {
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('pct-label').textContent = Math.round(pct) + '%';
+}
+
+function addLog(msg) {
+  const log = document.getElementById('live-log');
+  const line = document.createElement('div');
+  line.className = 'log-line';
+  const t = new Date().toLocaleTimeString('en-US', { hour12: false });
+  line.innerHTML = `<span class="log-ts">[${t}]</span>${msg}`;
+  log.appendChild(line);
+  log.scrollTop = log.scrollHeight;
+}
+
+function showError(msg) {
+  clearInterval(pollTimer);
+  clearInterval(logTimer);
+  document.getElementById('error-box').classList.remove('hidden');
+  document.getElementById('error-msg').textContent = msg;
+  document.getElementById('status-badge').className = 'badge badge-red';
+  document.getElementById('status-badge').textContent = 'Failed';
+  document.getElementById('status-sub').textContent = 'Pipeline encountered an error';
+}
+
+let pollTimer, logTimer, fakeStep = 0;
+
+function startPolling() {
+  if (!sessionId) { window.location.href = 'analyze.html'; return; }
+
+  renderAgents(0);
+  setProgress(5);
+  addLog('Session created: ' + sessionId.substring(0, 12) + '…');
+
+  logTimer = setInterval(() => {
+    if (logIndex < LOG_MSGS.length) addLog(LOG_MSGS[logIndex++]);
+  }, 2500);
+
+  pollTimer = setInterval(async () => {
+    try {
+      const data = await Api.getSessionStatus(sessionId);
+      const status = (data.status || '').toLowerCase();
+      const step   = data.step || 0;
+
+      setProgress(Math.min(Math.round((step / 6) * 100), 95));
+      renderAgents(step);
+
+      if (status === 'complete' || status === 'completed') {
+        clearInterval(pollTimer);
+        clearInterval(logTimer);
+        setProgress(100);
+        renderAgents(AGENTS.length);
+        addLog('✓ Analysis complete! Redirecting to insights…');
+        document.getElementById('status-sub').textContent = 'Analysis complete — loading insights';
+        document.getElementById('status-badge').className = 'badge badge-green';
+        document.getElementById('status-badge').textContent = 'Complete';
+        if (data.result) State.setResult(data.result);
+        setTimeout(() => window.location.href = 'insight.html', 1200);
+
+      } else if (status === 'failed' || status === 'error') {
+        clearInterval(logTimer);
+        showError(data.error || 'Pipeline failed. Check backend logs.');
+      } else {
+        document.getElementById('status-sub').textContent = status || 'Processing…';
+        if (fakeStep < 5) renderAgents(++fakeStep);
+      }
+    } catch (e) {
+      if (e.message.includes('fetch') || e.message.includes('Failed to fetch')) {
+        showError('Cannot reach backend — is Docker running on localhost:8000?');
+      }
+    }
+  }, 2000);
+}
+
+startPolling();
+</script>
+</body>
+</html>

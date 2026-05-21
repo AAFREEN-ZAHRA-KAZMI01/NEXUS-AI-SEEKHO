@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Nexus AI — AI-powered business intelligence platform">
+  <title>Nexus AI — Sign In</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<div class="login-layout">
+
+  <!-- Left: Branding Panel -->
+  <div class="login-brand">
+    <div class="brand-content">
+      <div class="brand-logo-ring">⚡</div>
+      <div class="brand-name">NEXUS <span>AI</span></div>
+      <div class="brand-tagline">
+        Transform raw data into intelligent actions.<br>
+        Powered by multi-agent AI pipelines.
+      </div>
+
+      <div class="brand-features">
+        <div class="brand-feature">
+          <span class="brand-feature-icon">🤖</span>
+          <span>6 specialized AI agents working in parallel</span>
+        </div>
+        <div class="brand-feature">
+          <span class="brand-feature-icon">📊</span>
+          <span>Real-time business impact analysis</span>
+        </div>
+        <div class="brand-feature">
+          <span class="brand-feature-icon">⚡</span>
+          <span>Autonomous action recommendations</span>
+        </div>
+        <div class="brand-feature">
+          <span class="brand-feature-icon">🌍</span>
+          <span>Pakistan-focused domain intelligence</span>
+        </div>
+      </div>
+
+      <div style="margin-top:48px;font-size:11px;color:var(--text4);">
+        AI-Seekho Hackathon · 2025
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Login Form -->
+  <div class="login-form-panel">
+    <div class="login-form-box">
+
+      <div id="backend-pill" class="badge badge-gray mb-16" style="display:inline-flex;">
+        ⏳ Checking backend…
+      </div>
+
+      <h1 class="login-form-title">Welcome back</h1>
+      <p class="login-form-sub">Sign in to your Nexus AI account</p>
+
+      <div id="login-error" class="alert alert-error hidden">
+        <span>⚠</span><span id="login-error-msg">Invalid credentials.</span>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Email Address</label>
+        <div class="input-with-icon">
+          <span class="input-icon">✉</span>
+          <input id="email" type="email" class="input" placeholder="you@company.com" value="demo@nexus.ai">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <div class="flex justify-between items-center mb-8" style="margin-bottom:7px;">
+          <label class="form-label" style="margin-bottom:0;">Password</label>
+          <a href="#" style="font-size:11px;color:var(--primary);">Forgot password?</a>
+        </div>
+        <div class="input-with-icon">
+          <span class="input-icon">🔒</span>
+          <input id="password" type="password" class="input" placeholder="••••••••" value="demo1234">
+        </div>
+      </div>
+
+      <button id="signin-btn" class="btn btn-primary btn-full btn-lg mt-8" onclick="handleLogin()">
+        <span id="btn-text">Sign In</span>
+      </button>
+
+      <div class="divider-or">or continue with</div>
+
+      <div class="social-row">
+        <button class="social-btn" onclick="handleLogin()">
+          <span style="font-size:18px;font-weight:800;color:#4285f4;">G</span> Google
+        </button>
+        <button class="social-btn" onclick="handleLogin()">
+          <span style="font-size:16px;">🪪</span> SSO
+        </button>
+      </div>
+
+      <p style="text-align:center;margin-top:24px;font-size:12px;color:var(--text3);">
+        Don't have an account?
+        <a href="signup.html" style="color:var(--primary);font-weight:600;">Create account</a>
+      </p>
+    </div>
+  </div>
+
+</div>
+
+<script src="js/state.js"></script>
+<script src="js/api.js"></script>
+<script>
+  // Check backend status
+  window.addEventListener('load', async () => {
+    const pill = document.getElementById('backend-pill');
+    const ok = await Api.ping();
+    if (ok) {
+      pill.className = 'badge badge-green mb-16';
+      pill.innerHTML = '● Backend Connected';
+    } else {
+      pill.className = 'badge badge-red mb-16';
+      pill.innerHTML = '● Backend Offline — Start Docker first';
+    }
+    pill.style.display = 'inline-flex';
+  });
+
+  async function handleLogin() {
+    const email = document.getElementById('email').value.trim();
+    const pass  = document.getElementById('password').value.trim();
+    const btn   = document.getElementById('signin-btn');
+    const errEl = document.getElementById('login-error');
+
+    if (!email || !pass) {
+      document.getElementById('login-error-msg').textContent = 'Please enter email and password.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+    errEl.classList.add('hidden');
+    btn.disabled = true;
+    document.getElementById('btn-text').textContent = 'Signing in…';
+    await new Promise(r => setTimeout(r, 700));
+
+    const name = email.split('@')[0].replace(/[._]/g, ' ')
+      .replace(/\b\w/g, c => c.toUpperCase());
+    State.setUser({ name, email });
+    window.location.href = 'home.html';
+  }
+
+  document.addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
+</script>
+</body>
+</html>

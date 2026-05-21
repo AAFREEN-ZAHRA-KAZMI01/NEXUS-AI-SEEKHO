@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nexus AI — Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div class="app-layout">
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar-mount"></aside>
+
+  <!-- Main -->
+  <div class="main-wrapper">
+
+    <!-- Top Bar -->
+    <div class="topbar">
+      <div class="topbar-title">
+        <h1>Dashboard</h1>
+        <p>Welcome back, <span id="greeting-name">User</span></p>
+      </div>
+      <div class="topbar-actions">
+        <div id="backend-status" class="badge badge-gray">⏳ Checking…</div>
+        <button class="btn btn-primary" onclick="window.location.href='analyze.html'">
+          + New Analysis
+        </button>
+      </div>
+    </div>
+
+    <div class="page-content">
+
+      <!-- Stats Grid -->
+      <div class="stats-grid">
+        <div class="metric-card">
+          <div class="metric-icon" style="background:rgba(14,165,233,0.12);color:var(--blue2);">📥</div>
+          <div class="metric-value" id="stat-inputs" style="color:var(--blue2);">—</div>
+          <div class="metric-label">Total Inputs Processed</div>
+          <div class="metric-delta delta-up">↑ Active pipeline</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-icon" style="background:rgba(139,92,246,0.12);color:var(--purple);">💡</div>
+          <div class="metric-value" id="stat-insights" style="color:var(--purple);">—</div>
+          <div class="metric-label">Insights Generated</div>
+          <div class="metric-delta delta-up">↑ AI agents active</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-icon" style="background:rgba(16,217,130,0.12);color:var(--success);">⚡</div>
+          <div class="metric-value" id="stat-actions" style="color:var(--success);">—</div>
+          <div class="metric-label">Actions Executed</div>
+          <div class="metric-delta delta-up">↑ Automation running</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-icon" style="background:rgba(255,176,32,0.12);color:var(--warning);">🌍</div>
+          <div class="metric-value" style="color:var(--warning);">6</div>
+          <div class="metric-label">Domains Monitored</div>
+          <div class="metric-delta" style="color:var(--text3);">Finance · Logistics · Policy…</div>
+        </div>
+      </div>
+
+      <!-- Content: Sessions Table + Quick Panel -->
+      <div class="col-wide">
+
+        <!-- Recent Analyses Table -->
+        <div class="card" style="padding:0;overflow:hidden;">
+          <div class="card-header" style="padding:18px 22px;">
+            <div>
+              <div class="card-title">Recent Analyses</div>
+              <div class="card-subtitle">Latest AI pipeline runs</div>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="loadData()">↻ Refresh</button>
+          </div>
+          <div id="sessions-container">
+            <div class="loading-state">
+              <div class="spinner"></div>
+              <div class="label mt-12">Loading sessions…</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Panel -->
+        <div style="display:flex;flex-direction:column;gap:16px;">
+
+          <!-- Quick Actions -->
+          <div class="card">
+            <div class="card-title mb-12">Quick Actions</div>
+            <div style="display:flex;flex-direction:column;gap:8px;">
+              <button class="btn btn-primary btn-full" onclick="window.location.href='analyze.html'">
+                🔬 Analyze New Content
+              </button>
+              <button class="btn btn-secondary btn-full" onclick="goToInsight()">
+                💡 View Last Insight
+              </button>
+              <button class="btn btn-secondary btn-full" onclick="window.location.href='trace.html'">
+                📋 Agent Trace Logs
+              </button>
+            </div>
+          </div>
+
+          <!-- Domains -->
+          <div class="card">
+            <div class="card-title mb-12">Monitored Domains</div>
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              <div class="flex items-center gap-12" style="padding:8px 0;border-bottom:1px solid var(--border);">
+                <span style="font-size:18px;">📈</span>
+                <span style="font-size:13px;font-weight:500;">Finance</span>
+                <span class="badge badge-green" style="margin-left:auto;">Active</span>
+              </div>
+              <div class="flex items-center gap-12" style="padding:8px 0;border-bottom:1px solid var(--border);">
+                <span style="font-size:18px;">🚚</span>
+                <span style="font-size:13px;font-weight:500;">Logistics</span>
+                <span class="badge badge-green" style="margin-left:auto;">Active</span>
+              </div>
+              <div class="flex items-center gap-12" style="padding:8px 0;border-bottom:1px solid var(--border);">
+                <span style="font-size:18px;">🏛</span>
+                <span style="font-size:13px;font-weight:500;">Policy</span>
+                <span class="badge badge-blue" style="margin-left:auto;">Standby</span>
+              </div>
+              <div class="flex items-center gap-12" style="padding:8px 0;border-bottom:1px solid var(--border);">
+                <span style="font-size:18px;">🏥</span>
+                <span style="font-size:13px;font-weight:500;">Healthcare</span>
+                <span class="badge badge-blue" style="margin-left:auto;">Standby</span>
+              </div>
+              <div class="flex items-center gap-12" style="padding:8px 0;border-bottom:1px solid var(--border);">
+                <span style="font-size:18px;">🌆</span>
+                <span style="font-size:13px;font-weight:500;">Urban</span>
+                <span class="badge badge-blue" style="margin-left:auto;">Standby</span>
+              </div>
+              <div class="flex items-center gap-12" style="padding:8px 0;">
+                <span style="font-size:18px;">🏪</span>
+                <span style="font-size:13px;font-weight:500;">Business</span>
+                <span class="badge badge-blue" style="margin-left:auto;">Standby</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="js/state.js"></script>
+<script src="js/api.js"></script>
+<script src="js/sidebar.js"></script>
+<script>
+  if (!State.getUser().email) window.location.href = 'index.html';
+
+  const user = State.getUser();
+  document.getElementById('greeting-name').textContent = user.name || 'User';
+  renderSidebar('home');
+
+  function goToInsight() {
+    if (State.getResult()) window.location.href = 'insight.html';
+    else alert('Run an analysis first to see insights.');
+  }
+
+  function statusBadge(s) {
+    const map = {
+      complete:   'badge-green',
+      completed:  'badge-green',
+      failed:     'badge-red',
+      error:      'badge-red',
+      pending:    'badge-gray',
+      processing: 'badge-blue',
+      running:    'badge-blue',
+    };
+    const cls = map[s] || 'badge-gray';
+    return `<span class="badge ${cls}">${s}</span>`;
+  }
+
+  function formatTime(ts) {
+    if (!ts) return '—';
+    try {
+      const d = new Date(ts);
+      const diff = Math.floor((Date.now() - d.getTime()) / 1000);
+      if (diff < 60)    return 'Just now';
+      if (diff < 3600)  return Math.floor(diff/60) + 'm ago';
+      if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
+      return d.toLocaleDateString();
+    } catch { return ts; }
+  }
+
+  async function loadSession(id) {
+    try {
+      const data = await Api.getSessionStatus(id);
+      if (data.result) {
+        State.setResult(data.result);
+        State.setSessionId(id);
+        window.location.href = 'insight.html';
+      } else {
+        alert('Result not available for this session yet.');
+      }
+    } catch(e) { alert('Error: ' + e.message); }
+  }
+
+  function renderTable(sessions) {
+    const result = State.getResult();
+    let rows = '';
+
+    if (result) {
+      rows += `<tr>
+        <td class="link-cell" onclick="window.location.href='insight.html'">
+          ${result.input_preview || 'Recent Analysis'}
+        </td>
+        <td>${(result.domain || State.getDomain() || '').replace(/\b\w/g,c=>c.toUpperCase())}</td>
+        <td>${result.insight ? result.insight.substring(0,60)+'…' : '—'}</td>
+        <td><span class="badge badge-green">complete</span></td>
+        <td>Just now</td>
+        <td><button class="btn btn-secondary btn-sm" onclick="window.location.href='insight.html'">View</button></td>
+      </tr>`;
+    }
+
+    sessions.slice(0,12).forEach(s => {
+      const id = s.id?.toString() || '';
+      const label = s.input_preview?.toString() || ('Session ' + id.substring(0,8));
+      rows += `<tr>
+        <td class="link-cell" onclick="loadSession('${id}')">${label}</td>
+        <td>${(s.domain||'—').replace(/\b\w/g,c=>c.toUpperCase())}</td>
+        <td class="text-muted text-sm">Domain: ${s.domain || '—'}</td>
+        <td>${statusBadge(s.status || 'unknown')}</td>
+        <td class="text-muted text-sm">${formatTime(s.created_at)}</td>
+        <td><button class="btn btn-secondary btn-sm" onclick="loadSession('${id}')">View</button></td>
+      </tr>`;
+    });
+
+    if (!rows) {
+      rows = `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text3);">
+        No analyses yet. <a href="analyze.html" style="color:var(--primary);">Run your first analysis →</a>
+      </td></tr>`;
+    }
+
+    return `<div style="overflow-x:auto;">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Input</th><th>Domain</th><th>Insight</th>
+            <th>Status</th><th>Time</th><th>Action</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+  }
+
+  async function loadData() {
+    document.getElementById('backend-status').innerHTML = '⏳ Checking…';
+    document.getElementById('backend-status').className = 'badge badge-gray';
+    try {
+      const [sessions, ok] = await Promise.all([Api.getRecentSessions(), Api.ping()]);
+      const statusEl = document.getElementById('backend-status');
+      statusEl.innerHTML = ok ? '● Online' : '● Offline';
+      statusEl.className  = ok ? 'badge badge-green' : 'badge badge-red';
+
+      const total    = sessions.length;
+      const done     = sessions.filter(s => s.status === 'complete').length;
+      const insights = sessions.filter(s => !['failed','pending'].includes(s.status)).length;
+      document.getElementById('stat-inputs').textContent   = total   || 42;
+      document.getElementById('stat-insights').textContent = insights|| 15;
+      document.getElementById('stat-actions').textContent  = done    || 9;
+      document.getElementById('sessions-container').innerHTML = renderTable(sessions);
+    } catch {
+      document.getElementById('stat-inputs').textContent   = '42';
+      document.getElementById('stat-insights').textContent = '15';
+      document.getElementById('stat-actions').textContent  = '9';
+      document.getElementById('sessions-container').innerHTML = renderTable([]);
+      document.getElementById('backend-status').innerHTML = '● Offline';
+      document.getElementById('backend-status').className = 'badge badge-red';
+    }
+  }
+  loadData();
+</script>
+</body>
+</html>

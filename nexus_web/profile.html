@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nexus AI — Profile</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div class="app-layout">
+
+  <aside class="sidebar" id="sidebar-mount"></aside>
+
+  <div class="main-wrapper">
+
+    <div class="topbar">
+      <div class="topbar-title">
+        <h1>Profile &amp; Settings</h1>
+        <p>Manage your account and backend configuration</p>
+      </div>
+      <div class="topbar-actions">
+        <button class="btn btn-danger" onclick="logout()">Log Out</button>
+      </div>
+    </div>
+
+    <div class="page-content">
+      <div class="col-wider">
+
+        <!-- Left Column -->
+        <div style="display:flex;flex-direction:column;gap:20px;">
+
+          <!-- User Card -->
+          <div class="card card-glow" style="text-align:center;padding:32px;">
+            <div style="width:80px;height:80px;background:linear-gradient(135deg,var(--primary),var(--primary2));border-radius:22px;display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:800;color:#000;margin:0 auto 16px;" id="profile-avatar">U</div>
+            <div style="font-size:22px;font-weight:700;" id="profile-name">User</div>
+            <div class="text-muted mt-6" id="profile-email">—</div>
+            <div class="flex gap-8 mt-12" style="justify-content:center;">
+              <span class="badge badge-teal">Pro Plan</span>
+              <span class="badge badge-blue">AI Analyst</span>
+              <span class="badge badge-purple">Hackathon 2025</span>
+            </div>
+          </div>
+
+          <!-- Settings List -->
+          <div class="card" style="padding:0;overflow:hidden;">
+            <div style="padding:16px 20px;border-bottom:1px solid var(--border);">
+              <div class="card-title">Account Settings</div>
+            </div>
+            <div class="option-row" style="cursor:pointer;" onclick="alert('Coming soon')">
+              <span class="option-icon">✏️</span>
+              <div class="option-info"><div class="option-label">Edit Profile</div><div class="option-sub">Update name, email, avatar</div></div>
+              <span class="text-muted">›</span>
+            </div>
+            <div class="option-row" style="cursor:pointer;" onclick="alert('Coming soon')">
+              <span class="option-icon">🔒</span>
+              <div class="option-info"><div class="option-label">Change Password</div><div class="option-sub">Update security credentials</div></div>
+              <span class="text-muted">›</span>
+            </div>
+            <div class="option-row" style="cursor:pointer;" onclick="alert('Coming soon')">
+              <span class="option-icon">🔔</span>
+              <div class="option-info"><div class="option-label">Notifications</div><div class="option-sub">Email alerts, push notifications</div></div>
+              <span class="text-muted">›</span>
+            </div>
+            <div class="option-row" style="cursor:pointer;" onclick="alert('Coming soon')">
+              <span class="option-icon">🌐</span>
+              <div class="option-info"><div class="option-label">Language</div><div class="option-sub">English (default)</div></div>
+              <span class="text-muted">›</span>
+            </div>
+            <div class="option-row" style="cursor:pointer;" onclick="window.location.href='trace.html'">
+              <span class="option-icon">📋</span>
+              <div class="option-info"><div class="option-label">Agent Trace Logs</div><div class="option-sub">View full pipeline reasoning</div></div>
+              <span class="text-muted">›</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Right Column -->
+        <div style="display:flex;flex-direction:column;gap:20px;">
+
+          <!-- Backend Status -->
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Backend Status</div>
+              <span id="backend-badge" class="badge badge-gray">Checking…</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;">
+              <div class="flex justify-between">
+                <span class="text-muted text-sm">Endpoint</span>
+                <span class="text-sm" style="font-family:monospace;">http://localhost:8000</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-muted text-sm">Session loaded</span>
+                <span class="text-sm" id="session-info">—</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-muted text-sm">Last result</span>
+                <span class="text-sm" id="result-info">—</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- AI Agents Info -->
+          <div class="card">
+            <div class="card-title mb-14">AI Agents</div>
+            <div style="display:flex;flex-direction:column;gap:8px;">
+              <div class="flex justify-between items-center"><div class="flex items-center gap-8"><span>🎯</span><span class="text-sm font-600">Orchestrator</span></div><span class="badge badge-teal">Gemini 1.5 Pro</span></div>
+              <div class="flex justify-between items-center"><div class="flex items-center gap-8"><span>📥</span><span class="text-sm font-600">Ingestion</span></div><span class="badge badge-blue">Gemini Flash</span></div>
+              <div class="flex justify-between items-center"><div class="flex items-center gap-8"><span>🔬</span><span class="text-sm font-600">Analysis</span></div><span class="badge badge-teal">Gemini 1.5 Pro</span></div>
+              <div class="flex justify-between items-center"><div class="flex items-center gap-8"><span>⚖️</span><span class="text-sm font-600">Decision</span></div><span class="badge badge-teal">Gemini 1.5 Pro</span></div>
+              <div class="flex justify-between items-center"><div class="flex items-center gap-8"><span>🔍</span><span class="text-sm font-600">Research</span></div><span class="badge badge-blue">Gemini Flash</span></div>
+              <div class="flex justify-between items-center"><div class="flex items-center gap-8"><span>⚡</span><span class="text-sm font-600">Execution</span></div><span class="badge badge-purple">Python Exec</span></div>
+            </div>
+          </div>
+
+          <!-- Danger Zone -->
+          <div class="card" style="border-color:rgba(255,77,106,0.25);">
+            <div class="card-title mb-6" style="color:var(--error);">⚠ Danger Zone</div>
+            <div class="text-muted text-sm mb-16">
+              Resets all backend mock data, domain state, and session history. This action cannot be undone.
+            </div>
+            <button class="btn btn-danger btn-full" id="reset-btn" onclick="resetState()">
+              Reset All Domain State
+            </button>
+          </div>
+
+          <!-- App Info -->
+          <div class="card" style="background:rgba(0,229,204,0.03);border-color:rgba(0,229,204,0.12);">
+            <div class="card-title mb-8" style="color:var(--primary);">About Nexus AI</div>
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              <div class="flex justify-between"><span class="text-muted text-sm">Version</span><span class="text-sm">1.0.0</span></div>
+              <div class="flex justify-between"><span class="text-muted text-sm">Event</span><span class="text-sm">AI-Seekho Hackathon 2025</span></div>
+              <div class="flex justify-between"><span class="text-muted text-sm">Stack</span><span class="text-sm">FastAPI · Flutter · Web</span></div>
+              <div class="flex justify-between"><span class="text-muted text-sm">AI Models</span><span class="text-sm">Gemini 1.5 Pro/Flash</span></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="js/state.js"></script>
+<script src="js/api.js"></script>
+<script src="js/sidebar.js"></script>
+<script>
+  if (!State.getUser().email) window.location.href = 'index.html';
+  renderSidebar('profile');
+
+  const user = State.getUser();
+  document.getElementById('profile-name').textContent   = user.name  || 'User';
+  document.getElementById('profile-email').textContent  = user.email || '—';
+  document.getElementById('profile-avatar').textContent = (user.name || 'U')[0].toUpperCase();
+
+  const sid = State.getSessionId();
+  document.getElementById('session-info').textContent = sid ? sid.substring(0,16)+'…' : 'None';
+  document.getElementById('result-info').textContent  = State.getResult() ? 'Loaded ✓' : 'None';
+
+  Api.ping().then(ok => {
+    const el = document.getElementById('backend-badge');
+    el.textContent = ok ? '● Online' : '● Offline';
+    el.className   = ok ? 'badge badge-green' : 'badge badge-red';
+  });
+
+  async function resetState() {
+    if (!confirm('Reset all domain state? This cannot be undone.')) return;
+    const btn = document.getElementById('reset-btn');
+    btn.disabled = true; btn.textContent = 'Resetting…';
+    try {
+      await Api.resetState();
+      State.setResult(null);
+      State.setSessionId(null);
+      alert('✓ Domain state reset successfully.');
+    } catch (e) {
+      alert('Reset failed: ' + e.message);
+    } finally {
+      btn.disabled = false; btn.textContent = 'Reset All Domain State';
+    }
+  }
+
+  function logout() {
+    State.clear();
+    window.location.href = 'index.html';
+  }
+</script>
+</body>
+</html>

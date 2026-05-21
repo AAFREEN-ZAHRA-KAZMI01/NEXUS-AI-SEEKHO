@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nexus AI — Agent Trace</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/app.css">
+  <style>
+    .trace-code {
+      background: #040710; border: 1px solid var(--border); border-radius: var(--radius-sm);
+      padding: 14px; font-family: 'Courier New', monospace; font-size: 12px; color: #7dd3fc;
+      white-space: pre-wrap; word-break: break-all; max-height: 320px; overflow-y: auto; margin-top: 10px;
+    }
+    .agent-filter-btn {
+      padding: 6px 14px; background: var(--card); border: 1px solid var(--border);
+      border-radius: 20px; font-size: 12px; font-weight: 600; color: var(--text3);
+      cursor: pointer; transition: all 0.15s;
+    }
+    .agent-filter-btn:hover { border-color: var(--border-light); color: var(--text2); }
+    .agent-filter-btn.active { background: rgba(0,229,204,0.1); border-color: var(--primary); color: var(--primary); }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+
+  <aside class="sidebar" id="sidebar-mount"></aside>
+
+  <div class="main-wrapper">
+
+    <div class="topbar">
+      <div class="topbar-title">
+        <h1>Agent Trace</h1>
+        <p id="session-label">Full reasoning trace from the AI pipeline</p>
+      </div>
+      <div class="topbar-actions">
+        <button class="btn btn-secondary" onclick="loadTrace()">↻ Reload</button>
+        <button class="btn btn-outline"   onclick="exportTrace()">📤 Export JSON</button>
+      </div>
+    </div>
+
+    <div class="page-content">
+
+      <!-- Filter Bar -->
+      <div class="flex gap-8 mb-24" style="flex-wrap:wrap;" id="filter-bar">
+        <button class="agent-filter-btn active" data-agent="all"          onclick="filterAgent('all')">All Agents</button>
+        <button class="agent-filter-btn"        data-agent="orchestrator" onclick="filterAgent('orchestrator')">🎯 Orchestrator</button>
+        <button class="agent-filter-btn"        data-agent="ingestion"    onclick="filterAgent('ingestion')">📥 Ingestion</button>
+        <button class="agent-filter-btn"        data-agent="analysis"     onclick="filterAgent('analysis')">🔬 Analysis</button>
+        <button class="agent-filter-btn"        data-agent="decision"     onclick="filterAgent('decision')">⚖️ Decision</button>
+        <button class="agent-filter-btn"        data-agent="research"     onclick="filterAgent('research')">🔍 Research</button>
+        <button class="agent-filter-btn"        data-agent="execution"    onclick="filterAgent('execution')">⚡ Execution</button>
+      </div>
+
+      <!-- Loading -->
+      <div id="loading-state" class="loading-state">
+        <div class="spinner"></div>
+        <div class="label mt-12">Loading agent trace…</div>
+      </div>
+
+      <!-- Error -->
+      <div id="error-state" class="hidden">
+        <div class="alert alert-error" style="max-width:500px;margin:0 auto;">
+          <span>⚠</span>
+          <div>
+            <div style="font-weight:600;margin-bottom:4px;">Could not load trace</div>
+            <div id="error-msg" class="text-sm">—</div>
+          </div>
+        </div>
+        <div class="text-center mt-16">
+          <button class="btn btn-secondary" onclick="loadTrace()">Retry</button>
+        </div>
+      </div>
+
+      <!-- Trace Items -->
+      <div id="trace-list" class="hidden">
+        <div id="trace-items" style="display:flex;flex-direction:column;gap:16px;"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="js/state.js"></script>
+<script src="js/api.js"></script>
+<script src="js/sidebar.js"></script>
+<script>
+if (!State.getUser().email) window.location.href = 'index.html';
+renderSidebar('trace');
+
+let allItems = [];
+let currentFilter = 'all';
+const sessionId = State.getSessionId();
+
+if (sessionId) {
+  document.getElementById('session-label').textContent = 'Session: ' + sessionId.substring(0,20) + '…';
+}
+
+function filterAgent(agent) {
+  currentFilter = agent;
+  document.querySelectorAll('.agent-filter-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.agent === agent));
+  renderItems(allItems);
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function renderItems(items) {
+  const filtered = currentFilter === 'all'
+    ? items
+    : items.filter(i => (i.agent || i.name || '').toLowerCase().includes(currentFilter));
+
+  const el = document.getElementById('trace-items');
+  if (!filtered.length) {
+    el.innerHTML = '<div class="text-muted" style="padding:32px;text-align:center;">No trace items for this agent.</div>';
+    return;
+  }
+
+  el.innerHTML = filtered.map(item => {
+    const agent   = item.agent || item.name || 'Agent';
+    const ts      = item.timestamp ? new Date(item.timestamp).toLocaleString() : '';
+    const content = typeof item.content === 'string' ? item.content
+      : JSON.stringify(item.content || item.data || item, null, 2);
+    const preview = content.substring(0, 3000) + (content.length > 3000 ? '\n\n… (truncated)' : '');
+    return `
+      <div class="card">
+        <div class="flex items-center gap-12 mb-4">
+          <span style="font-size:15px;font-weight:700;">${esc(agent)}</span>
+          ${item.step ? `<span class="badge badge-blue">Step ${item.step}</span>` : ''}
+          ${ts ? `<span class="text-muted text-sm" style="margin-left:auto;">${ts}</span>` : ''}
+        </div>
+        ${item.summary ? `<div class="text-muted text-sm mb-8">${esc(item.summary)}</div>` : ''}
+        <div class="trace-code">${esc(preview)}</div>
+      </div>`;
+  }).join('');
+}
+
+async function exportTrace() {
+  if (sessionId) window.open(`http://localhost:8000/api/session/${sessionId}/trace`, '_blank');
+  else alert('No session loaded.');
+}
+
+async function loadTrace() {
+  document.getElementById('loading-state').classList.remove('hidden');
+  document.getElementById('error-state').classList.add('hidden');
+  document.getElementById('trace-list').classList.add('hidden');
+
+  if (!sessionId) {
+    document.getElementById('loading-state').classList.add('hidden');
+    document.getElementById('error-state').classList.remove('hidden');
+    document.getElementById('error-msg').textContent = 'No session loaded. Run an analysis first.';
+    return;
+  }
+
+  try {
+    const data = await Api.getSessionTrace(sessionId);
+    allItems = Array.isArray(data) ? data : (data.items || data.trace || [data]);
+    document.getElementById('loading-state').classList.add('hidden');
+    document.getElementById('trace-list').classList.remove('hidden');
+    renderItems(allItems);
+  } catch (e) {
+    document.getElementById('loading-state').classList.add('hidden');
+    document.getElementById('error-state').classList.remove('hidden');
+    document.getElementById('error-msg').textContent = e.message;
+  }
+}
+
+loadTrace();
+</script>
+</body>
+</html>

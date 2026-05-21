@@ -7,6 +7,6 @@ echo "Host: $APP_HOST:$APP_PORT"
 
 exec uvicorn main:app \
   --host ${APP_HOST:-0.0.0.0} \
-  --port ${APP_PORT:-8000} \
+  --port ${PORT:-${APP_PORT:-8000}} \
   --workers 1 \
   --log-level ${LOG_LEVEL:-info}

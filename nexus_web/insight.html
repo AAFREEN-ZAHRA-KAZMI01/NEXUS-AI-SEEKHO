@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nexus AI — Insights</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div class="app-layout">
+
+  <aside class="sidebar" id="sidebar-mount"></aside>
+
+  <div class="main-wrapper">
+
+    <div class="topbar">
+      <div class="topbar-title">
+        <h1>AI Insights</h1>
+        <p id="domain-topbar">Analysis Results</p>
+      </div>
+      <div class="topbar-actions">
+        <button class="btn btn-secondary" onclick="exportTrace()">📤 Export Trace</button>
+        <button class="btn btn-secondary" onclick="shareResult()">🔗 Share</button>
+        <button class="btn btn-primary"   onclick="window.location.href='analyze.html'">+ New Analysis</button>
+      </div>
+    </div>
+
+    <!-- No result -->
+    <div id="no-result" class="hidden" style="flex:1;display:flex;align-items:center;justify-content:center;">
+      <div style="text-align:center;padding:64px;">
+        <div style="font-size:64px;margin-bottom:16px;">🔬</div>
+        <div style="font-size:22px;font-weight:700;margin-bottom:8px;">No Analysis Yet</div>
+        <div class="text-muted mb-24">Run an AI analysis to see insights here.</div>
+        <button class="btn btn-primary btn-lg" onclick="window.location.href='analyze.html'">Go to Analyze →</button>
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div class="page-content" id="results-content">
+
+      <!-- Tab Bar -->
+      <div class="tab-bar">
+        <div class="tab-item active" id="tab-insight"  onclick="showTab('insight')">💡 Insight</div>
+        <div class="tab-item"        id="tab-actions"  onclick="showTab('actions')">⚡ Actions</div>
+        <div class="tab-item"        id="tab-results"  onclick="showTab('results')">✅ Results</div>
+      </div>
+
+      <!-- ── INSIGHT TAB ───────────────────────────────────────── -->
+      <div id="content-insight">
+
+        <!-- KPI Row -->
+        <div class="kpi-row mb-24">
+          <div class="kpi-box">
+            <div class="kpi-label">Severity Score</div>
+            <div class="kpi-value" id="kpi-severity" style="color:var(--error);">—</div>
+          </div>
+          <div class="kpi-box">
+            <div class="kpi-label">Cost Impact</div>
+            <div class="kpi-value" id="kpi-cost" style="color:var(--warning);">—</div>
+          </div>
+          <div class="kpi-box">
+            <div class="kpi-label">Revenue at Risk</div>
+            <div class="kpi-value" id="kpi-revenue" style="color:var(--error);">—</div>
+          </div>
+          <div class="kpi-box">
+            <div class="kpi-label">Confidence</div>
+            <div class="kpi-value" id="kpi-confidence" style="color:var(--success);">—</div>
+          </div>
+        </div>
+
+        <div class="col-wider">
+
+          <!-- Left: Main Insight -->
+          <div style="display:flex;flex-direction:column;gap:20px;">
+
+            <!-- Severity Card -->
+            <div class="card card-glow">
+              <div class="card-header">
+                <div class="card-title">Severity Assessment</div>
+                <span id="severity-badge" class="badge badge-red">CRITICAL</span>
+              </div>
+              <div class="sev-track mb-8">
+                <div class="sev-fill" id="sev-fill" style="width:0%;"></div>
+              </div>
+              <div class="sev-labels"><span>Low</span><span>Medium</span><span>High</span><span>Critical</span></div>
+              <div id="sev-score" style="font-size:36px;font-weight:800;margin-top:12px;">—</div>
+              <div id="sev-desc" class="text-muted mt-6">—</div>
+            </div>
+
+            <!-- Key Insight -->
+            <div class="card">
+              <div class="card-title mb-12">Key Insight</div>
+              <div id="insight-text" style="font-size:15px;line-height:1.7;color:var(--text2);">—</div>
+            </div>
+
+            <!-- Before / After -->
+            <div class="card">
+              <div class="card-title mb-16">State Change</div>
+              <div class="ba-grid">
+                <div class="ba-box before">
+                  <div class="ba-label">Before</div>
+                  <div class="ba-value" id="ba-before">—</div>
+                  <div class="ba-sub"  id="ba-before-sub">Current state</div>
+                </div>
+                <div class="ba-box after">
+                  <div class="ba-label">After Action</div>
+                  <div class="ba-value" id="ba-after">—</div>
+                  <div class="ba-sub"  id="ba-after-sub">Projected state</div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Right: KPIs + Notifications -->
+          <div style="display:flex;flex-direction:column;gap:20px;">
+
+            <!-- KPIs Affected -->
+            <div class="card">
+              <div class="card-title mb-12">KPIs Affected</div>
+              <div id="kpis-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+            </div>
+
+            <!-- Notifications -->
+            <div class="card" id="notif-card">
+              <div class="card-header">
+                <div class="card-title">Notifications Sent</div>
+                <span id="notif-count" class="badge badge-blue">0</span>
+              </div>
+              <div id="notif-list"></div>
+            </div>
+
+            <!-- Top Action Preview -->
+            <div class="card" style="background:rgba(0,229,204,0.03);border-color:rgba(0,229,204,0.2);">
+              <div class="card-title mb-8" style="color:var(--primary);">Top Recommendation</div>
+              <div id="top-action-preview" class="text-muted text-sm" style="line-height:1.6;">—</div>
+              <button class="btn btn-outline btn-full mt-12" onclick="showTab('actions')">View All Actions →</button>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- ── ACTIONS TAB ───────────────────────────────────────── -->
+      <div id="content-actions" class="hidden">
+        <div class="col-wider">
+          <div style="display:flex;flex-direction:column;gap:16px;">
+            <div class="section-label">Top Recommendation</div>
+            <div class="action-card top" id="top-action-full">
+              <div class="action-type" id="top-type">—</div>
+              <div class="action-desc" id="top-desc">—</div>
+              <div class="action-meta" id="top-meta"></div>
+              <div class="flex gap-12 mt-16">
+                <button class="btn btn-primary" onclick="window.location.href='simulate.html'">⚡ Execute Now</button>
+                <button class="btn btn-secondary" onclick="window.location.href='simulate.html'">▶ Simulate</button>
+              </div>
+            </div>
+
+            <div class="section-label">Alternative Actions</div>
+            <div id="alt-actions"></div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:16px;">
+            <div class="card card-glow">
+              <div class="card-title mb-8" style="color:var(--primary);">Action Details</div>
+              <div style="display:flex;flex-direction:column;gap:8px;" id="action-details">
+                <div class="flex justify-between"><span class="text-muted text-sm">Feasibility</span><span id="det-feasibility" class="text-sm">—</span></div>
+                <div class="flex justify-between"><span class="text-muted text-sm">Impact Score</span><span id="det-impact" class="text-sm">—</span></div>
+                <div class="flex justify-between"><span class="text-muted text-sm">Expected Delta</span><span id="det-delta" class="text-sm" style="color:var(--success);">—</span></div>
+                <div class="flex justify-between"><span class="text-muted text-sm">Urgency</span><span id="det-urgency" class="text-sm">—</span></div>
+                <div class="flex justify-between"><span class="text-muted text-sm">Execution Mode</span><span id="det-mode" class="text-sm">Autonomous</span></div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-title mb-8">Justification</div>
+              <div id="det-justification" class="text-muted text-sm" style="line-height:1.7;">—</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── RESULTS TAB ───────────────────────────────────────── -->
+      <div id="content-results" class="hidden">
+        <div class="content-grid">
+          <div style="display:flex;flex-direction:column;gap:20px;">
+
+            <div class="card" style="text-align:center;padding:32px;">
+              <div class="check-circle">✓</div>
+              <div style="font-size:22px;font-weight:700;margin-bottom:6px;">Analysis Complete</div>
+              <div class="text-muted">Multi-agent pipeline executed successfully</div>
+            </div>
+
+            <div class="card">
+              <div class="card-title mb-16">Execution Summary</div>
+              <div id="exec-summary" style="display:flex;flex-direction:column;gap:10px;"></div>
+            </div>
+
+            <div class="flex gap-12">
+              <button class="btn btn-outline" onclick="exportTrace()" style="flex:1;">📤 Export JSON Trace</button>
+              <button class="btn btn-primary"  onclick="window.location.href='analyze.html'" style="flex:1;">+ New Analysis</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title mb-16">Execution Timeline</div>
+            <div class="timeline" id="timeline"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="js/state.js"></script>
+<script src="js/api.js"></script>
+<script src="js/sidebar.js"></script>
+<script>
+if (!State.getUser().email) window.location.href = 'index.html';
+renderSidebar('insight');
+
+function showTab(tab) {
+  ['insight','actions','results'].forEach(t => {
+    document.getElementById(`content-${t}`).classList.add('hidden');
+    const el = document.getElementById(`tab-${t}`);
+    el.classList.remove('active');
+  });
+  document.getElementById(`content-${tab}`).classList.remove('hidden');
+  document.getElementById(`tab-${tab}`).classList.add('active');
+}
+
+function exportTrace() {
+  const id = State.getSessionId();
+  if (id) window.open(`http://localhost:8000/api/session/${id}/trace`, '_blank');
+  else alert('No session to export.');
+}
+function shareResult() {
+  const r = State.getResult();
+  const t = r ? `Nexus AI Insight:\n${r.insight||''}\n\nTop Action: ${r.top_action?.description||''}` : 'No result';
+  navigator.clipboard?.writeText(t).then(() => alert('Copied to clipboard!'));
+}
+
+function fmtPKR(v) {
+  if (!v || v === '—') return '—';
+  if (typeof v === 'string') return v;
+  if (v >= 1e6) return 'PKR ' + (v/1e6).toFixed(1) + 'M';
+  if (v >= 1e3) return 'PKR ' + (v/1e3).toFixed(0) + 'K';
+  return 'PKR ' + v;
+}
+
+function renderResult(r) {
+  document.getElementById('domain-topbar').textContent =
+    (r.domain || State.getDomain() || 'General').replace(/\b\w/g,c=>c.toUpperCase()) + ' Analysis';
+
+  // Severity
+  const sev = parseFloat(r.severity_score ?? r.severity ?? 0);
+  const pct = Math.min(Math.round(sev * 10), 100);
+  document.getElementById('sev-fill').style.width = pct + '%';
+  document.getElementById('sev-score').textContent = sev.toFixed(1) + ' / 10';
+  document.getElementById('kpi-severity').textContent = sev.toFixed(1);
+
+  let sevColor = 'var(--success)', sevLabel = 'LOW', badgeCls = 'badge-green';
+  if (sev >= 8)      { sevColor = 'var(--error)';   sevLabel = 'CRITICAL'; badgeCls = 'badge-red'; }
+  else if (sev >= 6) { sevColor = 'var(--warning)'; sevLabel = 'HIGH';     badgeCls = 'badge-warn'; }
+  else if (sev >= 4) { sevColor = 'var(--blue2)';   sevLabel = 'MEDIUM';   badgeCls = 'badge-blue'; }
+
+  document.getElementById('sev-fill').style.background = sevColor;
+  document.getElementById('sev-score').style.color = sevColor;
+  document.getElementById('kpi-severity').style.color = sevColor;
+  document.getElementById('severity-badge').textContent  = sevLabel;
+  document.getElementById('severity-badge').className    = 'badge ' + badgeCls;
+  document.getElementById('sev-desc').textContent = r.severity_description || r.insight_summary || '';
+
+  // Key insight
+  document.getElementById('insight-text').textContent = r.insight || r.insight_text || '—';
+
+  // KPIs
+  document.getElementById('kpi-cost').textContent       = fmtPKR(r.cost_impact ?? r.kpis?.cost_impact);
+  document.getElementById('kpi-revenue').textContent    = fmtPKR(r.revenue_at_risk ?? r.kpis?.revenue_at_risk);
+  document.getElementById('kpi-confidence').textContent = r.confidence ? Math.round(r.confidence*100)+'%' : (r.confidence_score ?? '—');
+
+  // KPIs list
+  const kpis = r.kpis_affected || [];
+  document.getElementById('kpis-list').innerHTML = kpis.length
+    ? kpis.map(k => `
+        <div class="flex justify-between items-center" style="padding:8px 0;border-bottom:1px solid var(--border);">
+          <span class="text-sm">${typeof k === 'string' ? k : k.name || k.kpi}</span>
+          <span class="badge badge-warn">${k.change || k.impact || 'Affected'}</span>
+        </div>`).join('')
+    : '<div class="text-muted text-sm">No KPI data available.</div>';
+
+  // Before / After
+  const ba = r.before_after || r.state_change || {};
+  document.getElementById('ba-before').textContent     = ba.before_value ?? r.current_value ?? '—';
+  document.getElementById('ba-before-sub').textContent = ba.before_label ?? 'Current state';
+  document.getElementById('ba-after').textContent      = ba.after_value  ?? r.projected_value ?? '—';
+  document.getElementById('ba-after-sub').textContent  = ba.after_label  ?? 'Projected state';
+
+  // Notifications
+  const notifs = r.notifications_sent || r.notifications || [];
+  document.getElementById('notif-count').textContent = notifs.length;
+  document.getElementById('notif-list').innerHTML = notifs.length
+    ? notifs.slice(0,4).map(n => `
+        <div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:12px;color:var(--text2);">
+          📨 <strong>${n.recipient || n.to || 'Team'}</strong> — ${n.message || n.subject || n}
+        </div>`).join('')
+    : '<div class="text-muted text-sm">No notifications sent.</div>';
+  if (!notifs.length) document.getElementById('notif-card').classList.add('hidden');
+
+  // Actions
+  const top = r.top_action || r.recommended_action || {};
+  document.getElementById('top-action-preview').textContent = top.description || top.action || '—';
+  document.getElementById('top-type').textContent  = (top.action_type || 'RECOMMENDATION').toUpperCase();
+  document.getElementById('top-desc').textContent  = top.description || '—';
+  document.getElementById('top-meta').innerHTML    = [
+    top.expected_delta    && `<span class="badge badge-green">+${top.expected_delta}</span>`,
+    top.feasibility_score && `<span class="badge badge-blue">Feasibility: ${Math.round(top.feasibility_score*100)}%</span>`,
+    top.urgency           && `<span class="badge badge-warn">${top.urgency}</span>`,
+  ].filter(Boolean).join('');
+  document.getElementById('det-feasibility').textContent  = top.feasibility_score ? Math.round(top.feasibility_score*100)+'%' : '—';
+  document.getElementById('det-impact').textContent       = top.impact_score      ? Math.round(top.impact_score*100)+'%'      : '—';
+  document.getElementById('det-delta').textContent        = top.expected_delta    ? '+'+top.expected_delta                    : '—';
+  document.getElementById('det-urgency').textContent      = top.urgency           || '—';
+  document.getElementById('det-justification').textContent= top.justification     || top.reason || '—';
+
+  const alts = r.alternative_actions || r.alternatives || [];
+  document.getElementById('alt-actions').innerHTML = alts.length
+    ? alts.map(a => `
+        <div class="action-card">
+          <div class="action-type">${(a.action_type||'ALTERNATIVE').toUpperCase()}</div>
+          <div class="action-desc">${a.description || a.action || ''}</div>
+          <div class="action-meta">
+            ${a.feasibility_score ? `<span class="badge badge-blue">Feasibility: ${Math.round(a.feasibility_score*100)}%</span>` : ''}
+            ${a.impact_score      ? `<span class="badge badge-green">Impact: ${Math.round(a.impact_score*100)}%</span>`      : ''}
+          </div>
+        </div>`).join('')
+    : '<div class="text-muted text-sm" style="padding:16px 0;">No alternatives available.</div>';
+
+  // Results
+  const checks = [
+    ['Pipeline Complete',     true],
+    ['Insights Generated',    !!(r.insight)],
+    ['Action Plan Created',   !!(top.description)],
+    ['Notifications Sent',    notifs.length > 0],
+    ['State Updated',         r.state_updated ?? false],
+  ];
+  document.getElementById('exec-summary').innerHTML = checks.map(([label, done]) => `
+    <div class="flex items-center gap-12">
+      <span style="font-size:18px;">${done ? '✅' : '⬜'}</span>
+      <span style="font-size:13px;color:${done?'var(--text)':'var(--text3)'};">${label}</span>
+    </div>`).join('');
+
+  const arts = r.artifacts || {};
+  const stages = [
+    { title:'Content Ingested',    time: arts.t1 || r.t1 },
+    { title:'Analysis Complete',   time: arts.t2 || r.t2 },
+    { title:'Action Plan Ready',   time: arts.t3 || r.t3 },
+    { title:'Execution Simulated', time: arts.t4 || r.t4 },
+  ];
+  document.getElementById('timeline').innerHTML = stages.map(s => `
+    <div class="tl-item">
+      <div class="tl-line-col"><div class="tl-dot"></div><div class="tl-connector"></div></div>
+      <div class="tl-content">
+        <div class="tl-title">${s.title}</div>
+        <div class="tl-time">${s.time ? new Date(s.time).toLocaleString() : 'Completed'}</div>
+      </div>
+    </div>`).join('');
+}
+
+const result = State.getResult();
+if (!result) {
+  document.getElementById('no-result').style.display = 'flex';
+  document.getElementById('results-content').classList.add('hidden');
+} else {
+  renderResult(result);
+}
+</script>
+</body>
+</html>

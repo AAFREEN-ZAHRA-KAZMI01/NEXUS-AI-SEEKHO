@@ -6,6 +6,10 @@ class ApiConstants {
   // flutter run --dart-define=BACKEND_IP=192.168.x.x
 
   static String get baseUrl {
+    // Production URL injected at build time: --dart-define=BACKEND_URL=https://...
+    const String backendUrl = String.fromEnvironment('BACKEND_URL', defaultValue: '');
+    if (backendUrl.isNotEmpty) return backendUrl;
+
     const String backendIp = String.fromEnvironment('BACKEND_IP', defaultValue: '');
     if (backendIp.isNotEmpty) {
       return 'http://$backendIp:8000';
