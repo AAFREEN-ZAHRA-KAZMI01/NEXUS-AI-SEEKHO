@@ -220,8 +220,8 @@ class ResultsScreen extends StatelessWidget {
                     const SizedBox(height: 8),
                     BeforeAfterWidget(
                       delta: result.delta,
-                      before: result.beforeState,
-                      after: result.afterState,
+                      before: result.beforeState ?? {},
+                      after: result.afterState ?? {},
                     ),
                     const SizedBox(height: 16),
                   ],

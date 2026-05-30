@@ -328,7 +328,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   children: [
                                     if (provider.result != null) ...[
                                       _RecentAnalysisCard(
-                                        fileName: provider.selectedFileName ?? 'Content Analysis',
+                                        fileName: provider.fileName ?? 'Content Analysis',
                                         timeAgo: 'Just now',
                                         insight: provider.result!.insight,
                                         action: provider.result!.topAction.description.isNotEmpty ? provider.result!.topAction.description : formatActionType(provider.result!.topAction.actionType),

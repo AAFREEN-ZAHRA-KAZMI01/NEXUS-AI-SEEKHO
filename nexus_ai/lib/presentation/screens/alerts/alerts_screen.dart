@@ -316,7 +316,7 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
           final domColor = _getDomainColor(alert.domain);
 
           return Card(
-            margin: const EdgeInsets.bottom: 16,
+            margin: const EdgeInsets.only(bottom: 16),
             color: cardColor,
             elevation: 0,
             shape: RoundedRectangleBorder(
@@ -492,7 +492,7 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
           final domColor = _getDomainColor(item.domain);
 
           return Container(
-            margin: const EdgeInsets.bottom: 12,
+            margin: const EdgeInsets.only(bottom: 12),
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: cardColor,

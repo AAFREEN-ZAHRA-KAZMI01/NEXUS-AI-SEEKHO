@@ -224,7 +224,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         )
                       : Column(
                           children: [
-                            const Text('No organisation connected. Running in local mode.', style: AppTextStyles.bodySmall),
+                            Text('No organisation connected. Running in local mode.', style: AppTextStyles.bodySmall),
                             const SizedBox(height: 12),
                             ElevatedButton(
                               onPressed: () => Navigator.pushNamed(context, '/org-setup').then((_) => _loadOrgDetails()),

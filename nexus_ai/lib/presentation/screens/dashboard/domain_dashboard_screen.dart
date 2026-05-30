@@ -4,7 +4,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../data/services/api_service.dart';
 import '../../../../data/models/domain_state_summary.dart';
-import '../../../widgets/common/nexus_card.dart';
+import '../../widgets/common/nexus_card.dart';
 
 class DomainDashboardScreen extends StatefulWidget {
   const DomainDashboardScreen({super.key});

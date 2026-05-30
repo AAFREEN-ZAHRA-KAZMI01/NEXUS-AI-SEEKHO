@@ -220,7 +220,7 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
                       icon: Icons.file_copy_outlined,
                       label: 'Multi-Document',
                       type: 'multi_document',
-                      color: amberColor,
+                      color: warningColor,
                       isSelected:
                           provider.selectedInputType == 'multi_document',
                       onTap: () => provider.setInputType('multi_document'),

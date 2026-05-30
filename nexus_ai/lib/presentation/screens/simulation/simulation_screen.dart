@@ -227,8 +227,8 @@ class _SimulationScreenState extends State<SimulationScreen> {
             if (result != null && result.delta.isNotEmpty)
               BeforeAfterWidget(
                 delta: result.delta,
-                before: result.beforeState,
-                after: result.afterState,
+                before: result.beforeState ?? {},
+                after: result.afterState ?? {},
               )
             else
               NexusCard(
