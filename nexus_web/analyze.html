@@ -6,6 +6,68 @@
   <title>Nexus AI — Analyze</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/app.css">
+  <style>
+    /* ── Full-screen Loading Overlay ── */
+    #analysis-overlay {
+      position: fixed; inset: 0; z-index: 200;
+      background: rgba(8,11,20,0.97);
+      display: none; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 32px;
+    }
+    #analysis-overlay.show { display: flex; }
+    .overlay-logo {
+      width: 64px; height: 64px;
+      background: linear-gradient(135deg, #00E5CC, #0EA5E9);
+      border-radius: 18px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 30px;
+      box-shadow: 0 0 48px rgba(0,229,204,0.3);
+      animation: breathe 2s ease-in-out infinite;
+    }
+    @keyframes breathe {
+      0%,100% { box-shadow: 0 0 24px rgba(0,229,204,0.3); }
+      50%      { box-shadow: 0 0 56px rgba(0,229,204,0.5); }
+    }
+    .overlay-title   { font-size: 22px; font-weight: 700; color: #fff; }
+    .overlay-sub     { font-size: 13px; color: #7A8BA0; margin-top: -20px; }
+    .overlay-prog-wrap{ width: 360px; }
+    .overlay-prog-bar {
+      height: 4px; background: #1E2D42; border-radius: 4px; overflow: hidden;
+    }
+    .overlay-prog-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #00E5CC, #0EA5E9);
+      border-radius: 4px;
+      width: 0%;
+      transition: width 0.6s ease;
+    }
+    .overlay-pct  { font-size: 12px; color: #7A8BA0; margin-top: 6px; text-align: right; }
+    .overlay-agents {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 10px; width: 480px;
+    }
+    .ov-agent {
+      background: #131C2E; border: 1px solid #1E2D42;
+      border-radius: 10px; padding: 12px;
+      transition: all 0.3s;
+    }
+    .ov-agent.active { border-color: #00E5CC; background: rgba(0,229,204,0.06); }
+    .ov-agent.done   { border-color: rgba(16,217,130,0.3); }
+    .ov-agent-icon   { font-size: 20px; margin-bottom: 4px; }
+    .ov-agent-name   { font-size: 11px; font-weight: 600; color: #CDD5E0; }
+    .ov-agent-status { font-size: 10px; color: #7A8BA0; margin-top: 2px; }
+    .ov-agent.active .ov-agent-status { color: #00E5CC; }
+    .ov-agent.done   .ov-agent-status { color: #10D982; }
+    .overlay-log {
+      width: 480px; background: #040710;
+      border: 1px solid #1E2D42; border-radius: 8px;
+      padding: 12px; height: 120px; overflow-y: auto;
+      font-family: monospace; font-size: 11px; color: #00E5CC;
+    }
+    .ov-log-line { margin-bottom: 3px; }
+    .ov-log-line::before { content: '> '; color: #4A5A6E; }
+  </style>
 </head>
 <body>
 <div class="app-layout">
@@ -201,6 +263,33 @@
   </div>
 </div>
 
+<!-- Analysis Loading Overlay -->
+<div id="analysis-overlay">
+  <div class="overlay-logo">⚡</div>
+  <div class="overlay-title">AI Pipeline Running</div>
+  <div class="overlay-sub" id="ov-status">Initializing agents…</div>
+
+  <div class="overlay-prog-wrap">
+    <div class="overlay-prog-bar">
+      <div class="overlay-prog-fill" id="ov-fill"></div>
+    </div>
+    <div class="overlay-pct" id="ov-pct">0%</div>
+  </div>
+
+  <div class="overlay-agents" id="ov-agents">
+    <div class="ov-agent" id="ov-a0"><div class="ov-agent-icon">📥</div><div class="ov-agent-name">Ingestion</div><div class="ov-agent-status">Waiting</div></div>
+    <div class="ov-agent" id="ov-a1"><div class="ov-agent-icon">🔬</div><div class="ov-agent-name">Analysis</div><div class="ov-agent-status">Waiting</div></div>
+    <div class="ov-agent" id="ov-a2"><div class="ov-agent-icon">⚖️</div><div class="ov-agent-name">Decision</div><div class="ov-agent-status">Waiting</div></div>
+    <div class="ov-agent" id="ov-a3"><div class="ov-agent-icon">🔍</div><div class="ov-agent-name">Research</div><div class="ov-agent-status">Waiting</div></div>
+    <div class="ov-agent" id="ov-a4"><div class="ov-agent-icon">⚡</div><div class="ov-agent-name">Execution</div><div class="ov-agent-status">Waiting</div></div>
+    <div class="ov-agent" id="ov-a5"><div class="ov-agent-icon">🎯</div><div class="ov-agent-name">Orchestrator</div><div class="ov-agent-status">Waiting</div></div>
+  </div>
+
+  <div class="overlay-log" id="ov-log">
+    <div class="ov-log-line">Pipeline started…</div>
+  </div>
+</div>
+
 <!-- Sample Modal -->
 <div class="overlay" id="samples-overlay" onclick="closeSamplesOverlay(event)">
   <div class="modal">
@@ -329,30 +418,125 @@ function applySample(i) {
   document.getElementById('samples-overlay').classList.remove('show');
 }
 
+// ── Overlay animation helpers ──────────────────────────────────
+const AGENTS = [
+  { id:'ov-a0', label:'Ingestion',    msgs:['Fetching content…','Parsing document…','Content ready ✓'] },
+  { id:'ov-a1', label:'Analysis',     msgs:['Extracting signals…','Building context…','Analysis done ✓'] },
+  { id:'ov-a2', label:'Decision',     msgs:['Evaluating options…','Scoring actions…','Decision ready ✓'] },
+  { id:'ov-a3', label:'Research',     msgs:['Searching database…','Cross-referencing…','Research done ✓'] },
+  { id:'ov-a4', label:'Execution',    msgs:['Generating plan…','Calculating KPIs…','Plan compiled ✓'] },
+  { id:'ov-a5', label:'Orchestrator', msgs:['Coordinating agents…','Assembling report…','Pipeline complete ✓'] },
+];
+
+let _animTimer = null;
+
+function ovLog(msg) {
+  const log = document.getElementById('ov-log');
+  const line = document.createElement('div');
+  line.className = 'ov-log-line';
+  line.textContent = msg;
+  log.appendChild(line);
+  log.scrollTop = log.scrollHeight;
+}
+
+function ovSetAgent(idx, state, statusText) {
+  const el = document.getElementById(AGENTS[idx].id);
+  if (!el) return;
+  el.classList.remove('active', 'done');
+  if (state === 'active') el.classList.add('active');
+  if (state === 'done')   el.classList.add('done');
+  el.querySelector('.ov-agent-status').textContent = statusText;
+}
+
+function ovSetProgress(pct, label) {
+  document.getElementById('ov-fill').style.width = pct + '%';
+  document.getElementById('ov-pct').textContent  = pct + '%';
+  document.getElementById('ov-status').textContent = label;
+}
+
+function startOverlayAnimation() {
+  // Reset
+  AGENTS.forEach((_, i) => ovSetAgent(i, '', 'Waiting'));
+  document.getElementById('ov-log').innerHTML = '<div class="ov-log-line">Pipeline started…</div>';
+  ovSetProgress(0, 'Initializing agents…');
+
+  let step = 0;
+  const TOTAL = AGENTS.length * 3; // 3 msg sub-steps per agent
+
+  _animTimer = setInterval(() => {
+    const agentIdx = Math.floor(step / 3);
+    const msgIdx   = step % 3;
+    if (agentIdx >= AGENTS.length) return;
+
+    const a = AGENTS[agentIdx];
+    const msg = a.msgs[msgIdx];
+    const pct = Math.round(((step + 1) / TOTAL) * 90); // cap at 90%; 100% on real completion
+
+    if (msgIdx === 0) {
+      if (agentIdx > 0) ovSetAgent(agentIdx - 1, 'done', AGENTS[agentIdx - 1].msgs[2]);
+      ovSetAgent(agentIdx, 'active', msg);
+    } else {
+      ovSetAgent(agentIdx, 'active', msg);
+    }
+    ovLog(`[${a.label}] ${msg}`);
+    ovSetProgress(pct, `${a.label} agent running…`);
+
+    step++;
+    if (step >= TOTAL) clearInterval(_animTimer);
+  }, 400);
+}
+
+function stopOverlayAnimation() {
+  clearInterval(_animTimer);
+  AGENTS.forEach((_, i) => ovSetAgent(i, 'done', AGENTS[i].msgs[2]));
+  ovSetProgress(100, 'Analysis complete!');
+  ovLog('All agents completed successfully ✓');
+}
+
+// ── Main analysis runner ───────────────────────────────────────
 async function runAnalysis() {
-  const btn    = document.getElementById('run-btn');
-  const errEl  = document.getElementById('run-error');
+  const btn   = document.getElementById('run-btn');
+  const errEl = document.getElementById('run-error');
   errEl.classList.add('hidden');
   btn.disabled = true;
-  btn.innerHTML = '⏳ Starting pipeline…';
+
+  // Show overlay and start fake progress animation
+  document.getElementById('analysis-overlay').classList.add('show');
+  startOverlayAnimation();
+
   try {
     let data;
     if (currentType === 'text') {
-      data = await Api.analyseText(document.getElementById('text-content').value.trim(), currentDomain);
+      data = await Api.analyseText(
+        document.getElementById('text-content').value.trim(),
+        currentDomain
+      );
     } else if (currentType === 'url') {
-      data = await Api.analyseUrl(document.getElementById('url-content').value.trim(), currentDomain);
+      data = await Api.analyseUrl(
+        document.getElementById('url-content').value.trim(),
+        currentDomain
+      );
     } else {
-      data = await Api.analyseFile(selectedFile, currentDomain);
+      const inputType = (currentType === 'excel') ? 'excel' : 'pdf';
+      data = await Api.analyseFile(selectedFile, currentDomain, inputType);
     }
-    State.setSessionId(data.session_id || data.id || data.sessionId);
-    window.location.href = 'progress.html';
+
+    // Pipeline done — save full result and navigate
+    stopOverlayAnimation();
+    State.setResult(data);
+    State.setSessionId(data.session_id || data.id || data.sessionId || null);
+
+    // Brief pause so user sees 100% before redirect
+    setTimeout(() => { window.location.href = 'insight.html'; }, 800);
+
   } catch (e) {
+    clearInterval(_animTimer);
+    document.getElementById('analysis-overlay').classList.remove('show');
     document.getElementById('run-error-msg').textContent = e.message.includes('fetch')
-      ? 'Cannot reach backend. Is Docker running on localhost:8000?'
-      : 'Error: ' + e.message;
+      ? 'Cannot reach backend. Is the server running on localhost:8000?'
+      : 'Pipeline error: ' + e.message;
     errEl.classList.remove('hidden');
     btn.disabled = false;
-    btn.innerHTML = '🚀 Run AI Analysis';
   }
 }
 </script>

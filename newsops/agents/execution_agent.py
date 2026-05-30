@@ -2,8 +2,10 @@ import asyncio
 import time
 
 from utils.logger import SessionLogger
+from utils.logger import SessionLogger
 from utils.helpers import compute_delta, now_iso, generate_uuid
 from database.models import save_state_log
+from utils.commentary_stream import push_commentary, close_stream
 
 from mock_api.state_store import get_state
 from mock_api.endpoints import (
@@ -180,6 +182,9 @@ class ExecutionAgent:
                 },
                 "action_type": "update_pricing"
             }
+            
+        action_type = top_action.get("action_type", "unknown")
+        push_commentary(actual_session_id, "execution", f"Executing: {action_type}...", "start")
 
         raw_endpoint = top_action.get("api_endpoint", "/api/logistics/pricing/update")
         # Strip method prefix
@@ -207,6 +212,9 @@ class ExecutionAgent:
         # STEP 4 — delta
         delta = compute_delta(state_before, state_after)
         self.logger.log("execution", "delta_computed", {"keys_changed": list(delta.keys())})
+        
+        changed_fields = len(delta.keys())
+        push_commentary(actual_session_id, "execution", f"State updated — {changed_fields} fields changed", "progress")
 
         # STEP 5 — notifications
         notifications = []
@@ -361,6 +369,9 @@ class ExecutionAgent:
         
         exec_log["model_used"] = "python_executor"
         exec_log["agent_display_name"] = "Execution Agent"
+        
+        push_commentary(actual_session_id, "execution", f"Execution done — {len(notifications_sent)} notifications sent", "complete")
+        close_stream(actual_session_id)
         
         return exec_log
 

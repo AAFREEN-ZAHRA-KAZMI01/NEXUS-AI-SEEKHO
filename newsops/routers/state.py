@@ -9,12 +9,19 @@ router = APIRouter(prefix="/api", tags=["State"])
 
 @router.get("/state/{domain}")
 async def get_domain_state(domain: str):
+    if domain == "all":
+        return {d: get_state(d) for d in DOMAINS}
     if domain not in DOMAINS:
         raise HTTPException(
             status_code=400,
             detail=f"Unknown domain '{domain}'. Valid domains: {DOMAINS}",
         )
     return get_state(domain)
+
+
+@router.get("/state/all")
+async def get_all_states():
+    return {d: get_state(d) for d in DOMAINS}
 
 
 @router.post("/state/reset")

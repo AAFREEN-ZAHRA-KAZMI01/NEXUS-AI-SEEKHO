@@ -4,7 +4,7 @@ import time
 from config import MODELS
 from utils.helpers import now_iso, detect_domain
 from utils.logger import SessionLogger
-from database.models import save_artifact, update_session_status, save_state_log, save_session
+from database.models import save_artifact, update_session_status, save_state_log, save_session, create_action_outcome
 from agents.ingestion_agent import IngestionAgent
 from agents.analysis_agent import AnalysisAgent
 from agents.decision_agent import DecisionAgent
@@ -72,6 +72,26 @@ class Orchestrator:
             })
             
         first_kpi = mapped_kpis[0] if mapped_kpis else {}
+
+        # Calculate confidence score and label
+        facts = signals.get("facts", [])
+        total_facts = len(facts)
+        high_facts = sum(1 for f in facts if isinstance(f, dict) and f.get("confidence") == "high")
+        medium_facts = sum(1 for f in facts if isinstance(f, dict) and f.get("confidence") == "medium")
+        
+        if total_facts > 0:
+            confidence_score = int((high_facts * 2 + medium_facts * 1) / (total_facts * 2) * 100)
+        else:
+            confidence_score = 0
+            
+        overall_conf = signals.get("overall_confidence", "low")
+        confidence_label = "High" if overall_conf == "high" else "Medium" if overall_conf == "medium" else "Low"
+        
+        # Extract conflicts
+        source_count = signals.get("source_count", 1)
+        conflicts = signals.get("source_conflicts", [])
+        conflict_warning = f"{len(conflicts)} conflicting signals detected — confidence reduced" if conflicts else None
+
         return {
             "agent": "orchestrator",
             "session_id": session_id,
@@ -86,7 +106,12 @@ class Orchestrator:
             "top_action": top_action_data,
             "alternative_actions": actions.get("actions", [])[1:3],
             "context": context.get("additional_context", ""),
-            "corroboration": context.get("corroboration", "unconfirmed"),
+            "corroboration": str(signals.get("corroboration_count", 0)),
+            "confidence_score": confidence_score,
+            "confidence_label": confidence_label,
+            "source_count": source_count,
+            "conflicts_detected": conflicts,
+            "conflict_warning": conflict_warning,
             "ready_for_execution": True,
             "projected_outcome": {
                 "metric": first_kpi.get("kpi", ""),
@@ -123,7 +148,6 @@ class Orchestrator:
             "status": "pending",
         })
         await update_session_status(session_id, "ingesting")
-        await asyncio.sleep(1.0)
         logger.log("orchestrator", "domain_detected", {"domain": domain})
 
         task_plan = self.build_task_plan(session_id, domain, input_type, parsed_input)
@@ -141,16 +165,13 @@ class Orchestrator:
             logger.log("orchestrator", "parallel_complete")
 
             await update_session_status(session_id, "researching")
-            await asyncio.sleep(1.0) # subtle pause for smooth UI rendering
 
             await update_session_status(session_id, "analysing")
-            await asyncio.sleep(1.0)
             logger.log("orchestrator", "analysis_start")
             impact = await self.analysis.run(signals, domain, session_id)
             await save_artifact(session_id, "analysis", "impact", impact)
 
             await update_session_status(session_id, "deciding")
-            await asyncio.sleep(1.0)
             logger.log("orchestrator", "decision_start")
             actions = await self.decision.run(signals, impact, domain, session_id)
             await save_artifact(session_id, "decision", "actions", actions)
@@ -159,11 +180,35 @@ class Orchestrator:
             await save_artifact(session_id, "orchestrator", "master_brief", master_brief)
             logger.log("orchestrator", "master_brief_created")
 
+            # Check and trigger watchlist alerts asynchronously/await
+            await check_and_trigger_alerts(master_brief, session_id)
+
             await update_session_status(session_id, "executing")
-            await asyncio.sleep(1.0)
             logger.log("orchestrator", "execution_start")
             exec_log = await self.execution.run(master_brief, session_id)
             await save_artifact(session_id, "execution", "exec_log", exec_log)
+
+            # Create ActionOutcome row (user_confirmed=False — user tracks it in the app)
+            try:
+                top_action = master_brief.get("top_action", {})
+                first_kpi = master_brief.get("kpis_affected", [{}])[0] if master_brief.get("kpis_affected") else {}
+                # Build a human-readable recommended_delta from the action or KPI delta
+                delta_val = top_action.get("recommended_delta") or ""
+                if not delta_val:
+                    kpi_delta = first_kpi.get("delta_pct")
+                    kpi_name_str = first_kpi.get("kpi", "")
+                    delta_val = f"{kpi_delta:+.1f}% on {kpi_name_str}" if kpi_delta is not None else ""
+                await create_action_outcome(
+                    session_id=session_id,
+                    domain=domain,
+                    action_type=top_action.get("action_type", ""),
+                    action_description=top_action.get("description", ""),
+                    recommended_delta=delta_val,
+                    kpi_name=first_kpi.get("kpi"),
+                    projected_value=first_kpi.get("projected_value"),
+                )
+            except Exception as oe:
+                logger.log("orchestrator", "outcome_creation_skipped", {"reason": str(oe)})
 
             await save_state_log(
                 session_id,
@@ -177,6 +222,13 @@ class Orchestrator:
             duration = round(time.time() - start_time, 2)
             await update_session_status(session_id, "complete", duration=duration)
             logger.log("orchestrator", "pipeline_complete", {"duration_seconds": duration})
+
+            # Store session knowledge in ChromaDB RAG store
+            try:
+                from utils.rag_store import add_session_knowledge
+                add_session_knowledge(session_id, domain, master_brief)
+            except Exception as re:
+                logger.log("orchestrator", "rag_storage_failed", {"reason": str(re)})
 
             return {
                 "session_id": session_id,
@@ -196,8 +248,12 @@ class Orchestrator:
                 "notifications_sent": exec_log["notifications_sent"],
                 "execution_status": exec_log["execution_status"],
                 "corroboration": master_brief["corroboration"],
+                "confidence_score": master_brief["confidence_score"],
+                "confidence_label": master_brief["confidence_label"],
                 "context": master_brief["context"],
                 "trace_url": f"/api/session/{session_id}/trace",
+                "rag_sources_used": context.get("rag_sources_used", 0) if isinstance(context, dict) else 0,
+                "rag_augmented": context.get("rag_augmented", False) if isinstance(context, dict) else False,
                 "artifacts": {
                     "task_plan": task_plan,
                     "signals": signals,
@@ -210,6 +266,90 @@ class Orchestrator:
             }
 
         except Exception as e:
+            from utils.validated_gemini import AgentValidationError
+            if isinstance(e, AgentValidationError):
+                logger.log("orchestrator", "validation_failed", {"agent": e.agent, "errors": e.validation_errors, "raw": e.raw_response})
+                await update_session_status(session_id, "failed", error=f"Validation failed for agent {e.agent}: {e.validation_errors}")
+                raise
+            
             await update_session_status(session_id, "failed", error=str(e))
             logger.log("orchestrator", "pipeline_failed", {"error": str(e)})
             raise
+
+
+async def check_and_trigger_alerts(master_brief: dict, session_id: str):
+    import uuid
+    from datetime import datetime, timezone
+    from sqlalchemy import select
+    from database.db import get_db
+    from database.models import WatchlistAlert, AlertHistory
+    from utils.commentary_stream import push_commentary
+
+    domain = master_brief.get("domain")
+    if not domain:
+        return
+
+    try:
+        async with get_db() as db:
+            result = await db.execute(
+                select(WatchlistAlert)
+                .where(WatchlistAlert.domain == domain)
+                .where(WatchlistAlert.is_active == True)
+            )
+            active_alerts = result.scalars().all()
+
+            for alert in active_alerts:
+                triggered = False
+                reason = ""
+                
+                if alert.condition_type == "severity_above":
+                    try:
+                        val = int(alert.condition_value)
+                        sev = int(master_brief.get("severity", 5))
+                        if sev > val:
+                            triggered = True
+                            reason = f"severity {sev} is above threshold {val}"
+                    except Exception:
+                        pass
+                elif alert.condition_type == "kpi_change":
+                    try:
+                        val = float(alert.condition_value)
+                        kpis = master_brief.get("kpis_affected", [])
+                        for k in kpis:
+                            dp = k.get("delta_pct")
+                            if dp is not None:
+                                dp_float = abs(float(dp))
+                                if dp_float > val:
+                                    triggered = True
+                                    reason = f"KPI '{k.get('kpi')}' change of {dp}% (absolute) exceeds threshold of {val}%"
+                                    break
+                    except Exception:
+                        pass
+                elif alert.condition_type == "domain_keyword":
+                    keyword = alert.keyword or alert.condition_value
+                    insight = master_brief.get("insight", "")
+                    if keyword and keyword.lower() in insight.lower():
+                        triggered = True
+                        reason = f"keyword '{keyword}' found in insight"
+
+                if triggered:
+                    # Update WatchlistAlert triggers
+                    alert.last_triggered_at = datetime.now(timezone.utc)
+                    alert.trigger_count += 1
+                    
+                    # Save history
+                    history = AlertHistory(
+                        id=str(uuid.uuid4()),
+                        alert_id=alert.id,
+                        session_id=session_id,
+                        triggered_at=datetime.now(timezone.utc),
+                        trigger_reason=reason
+                    )
+                    db.add(history)
+                    
+                    # Push stream commentary
+                    alert_msg = f"🔔 Watchlist Alert triggered: '{alert.label}' ({reason})"
+                    push_commentary(session_id, "watchlist", alert_msg, "progress")
+    except Exception as e:
+        print(f"Error executing alerts logic: {e}")
+

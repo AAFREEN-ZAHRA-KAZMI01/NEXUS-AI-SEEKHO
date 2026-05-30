@@ -10,10 +10,23 @@ APP_PORT = int(os.getenv("APP_PORT", 8000))
 DEBUG = os.getenv("DEBUG", "true").lower() == "true"
 DEMO_MODE = os.getenv("DEMO_MODE", "false").lower() == "true"
 
-_raw_origins = os.getenv("ALLOWED_ORIGINS", "*")
+# ALLOWED_ORIGINS — comma-separated list of permitted CORS origins.
+# Defaults to common local-dev addresses.  In production, override via the
+# ALLOWED_ORIGINS environment variable, e.g.:
+#   ALLOWED_ORIGINS=https://your-app.com,https://api.your-app.com
+_raw_origins = os.getenv(
+    "ALLOWED_ORIGINS",
+    "http://localhost:3000,http://localhost:8000,http://10.0.2.2:8000",
+)
 ALLOWED_ORIGINS: list[str] = [o.strip() for o in _raw_origins.split(",") if o.strip()]
 
 MAX_TEXT_CHARS = int(os.getenv("MAX_TEXT_CHARS", 8000))
+
+# APP_API_KEY — optional shared secret for the X-API-Key header guard.
+# Leave unset (or empty) in local development to disable the check.
+# In production set a strong random value, e.g.:
+#   APP_API_KEY=$(python -c "import secrets; print(secrets.token_hex(32))")
+APP_API_KEY: str | None = os.getenv("APP_API_KEY") or None
 
 SMTP_HOST = os.getenv("SMTP_HOST", "")
 SMTP_PORT = int(os.getenv("SMTP_PORT", 587))

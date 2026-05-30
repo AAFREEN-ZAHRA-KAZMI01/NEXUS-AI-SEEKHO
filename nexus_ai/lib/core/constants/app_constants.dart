@@ -4,8 +4,9 @@ class AppConstants {
   static const String appSubtitle = 'AI Agents that understand, analyze, and take action';
   static const String brandShort  = 'NEXUS';
   static const String brandSub    = 'AI';
-
-
+  static String deviceId = '';
+  static const String apiKeyPrefKey = 'org_api_key';
+  static const String orgIdPrefKey = 'org_id';
   static const List<String> domains = [
     'logistics', 'business', 'finance',
     'policy', 'healthcare', 'urban',

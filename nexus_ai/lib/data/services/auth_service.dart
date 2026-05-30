@@ -1,10 +1,18 @@
+// Local demo auth only — not for production use
+
 import 'dart:convert';
+import 'package:crypto/crypto.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_model.dart';
 
 class AuthService {
   static const String _usersKey = 'demo_users_list';
   static const String _currentUserKey = 'current_logged_in_user';
+
+  // Hash password using SHA-256
+  String _hashPassword(String password) {
+    return sha256.convert(utf8.encode(password)).toString();
+  }
 
   // Get all registered users from shared preferences
   Future<List<UserModel>> getUsers() async {
@@ -31,7 +39,7 @@ class AuthService {
       id: 'usr_${DateTime.now().millisecondsSinceEpoch}',
       name: name,
       email: email,
-      password: password,
+      password: _hashPassword(password),
       createdAt: DateTime.now(),
     );
 
@@ -45,8 +53,9 @@ class AuthService {
   // Login verification
   Future<UserModel> loginUser(String email, String password) async {
     final users = await getUsers();
+    final hashedPassword = _hashPassword(password);
     final userIndex = users.indexWhere(
-      (u) => u.email.toLowerCase() == email.toLowerCase() && u.password == password
+      (u) => u.email.toLowerCase() == email.toLowerCase() && u.password == hashedPassword
     );
 
     if (userIndex == -1) {

@@ -74,6 +74,8 @@ class AnalysisResponse(BaseModel):
     context: Optional[str] = None
     trace_url: Optional[str] = None
     artifacts: Optional[Dict[str, Any]] = None
+    rag_sources_used: Optional[int] = None
+    rag_augmented: Optional[bool] = None
 
     model_config = {"extra": "allow"}
 

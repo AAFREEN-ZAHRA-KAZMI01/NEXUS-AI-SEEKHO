@@ -4,7 +4,9 @@ import time
 from config import GEMINI_API_KEY, MODELS, DEMO_MODE
 from utils.logger import SessionLogger
 from utils.helpers import retry, extract_json_from_text, now_iso
-from utils.gemini_client import call_gemini
+from utils.validated_gemini import call_gemini_validated
+from schemas.agent_schemas import DecisionOutput
+from utils.commentary_stream import push_commentary
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -527,13 +529,15 @@ Evaluate all {len(catalogue)} actions. Score each. Return top 3 ranked with comp
 """
 
         try:
-            return await call_gemini(
+            result_model = await call_gemini_validated(
                 system_prompt=DECISION_SYSTEM_PROMPT,
                 user_message=user_message,
+                output_model=DecisionOutput,
                 model=self.model,
-                temperature=0.4,
-                expect_json=True,
+                session_id=self.session_id,
+                agent_name="decision"
             )
+            return result_model.model_dump()
         except Exception as e:
             import logging
             logging.warning(f"Gemini call failed: {e}. Using mock response.")
@@ -543,10 +547,19 @@ Evaluate all {len(catalogue)} actions. Score each. Return top 3 ranked with comp
         session_id = session_id or getattr(self, "session_id", None) or "session-default"
         logger = SessionLogger(session_id)
         logger.log("decision_agent", "start", {"domain": domain, "timestamp": now_iso()})
+        
+        from agents.decision_agent import DOMAIN_ACTION_CATALOGUES
+        cand_count = len(DOMAIN_ACTION_CATALOGUES.get(domain, []))
+        push_commentary(session_id, "decision", f"Evaluating {cand_count} candidate actions...", "start")
 
         start_time = time.time()
         try:
             result = await self._call_llm(signals, impact, domain)
+            top = result.get("actions", [{}])[0]
+            if top:
+                action_type = top.get("action_type", "unknown")
+                score = top.get("composite_score", "N/A")
+                push_commentary(session_id, "decision", f"Top action: {action_type} — composite score {score}", "progress")
         except Exception as exc:
             logger.log("decision_agent", "error", {"error": str(exc), "timestamp": now_iso()})
             raise
@@ -565,5 +578,9 @@ Evaluate all {len(catalogue)} actions. Score each. Return top 3 ranked with comp
 
         result["model_used"] = MODELS["decision"]
         result["agent_display_name"] = "Decision Agent"
+
+        top_act = result.get("actions", [{}])[0]
+        desc = top_act.get("description", "No recommendation")
+        push_commentary(session_id, "decision", f"Decision done — recommended: {desc}", "complete")
 
         return result

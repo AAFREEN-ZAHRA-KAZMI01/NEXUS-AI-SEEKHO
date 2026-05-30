@@ -4,7 +4,9 @@ import time
 from config import GEMINI_API_KEY, MODELS, DEMO_MODE
 from utils.logger import SessionLogger
 from utils.helpers import retry, extract_json_from_text, now_iso
-from utils.gemini_client import call_gemini
+from utils.validated_gemini import call_gemini_validated
+from schemas.agent_schemas import ResearchOutput
+from utils.commentary_stream import push_commentary
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -106,26 +108,37 @@ class ResearchAgent:
             }
 
     @retry(times=2, delay=2.0)
-    async def _call_llm(self, parsed_input: dict, domain: str) -> dict:
+    async def _call_llm(self, parsed_input: dict, domain: str, similar_chunks: list = None) -> dict:
         if DEMO_MODE or not GEMINI_API_KEY or GEMINI_API_KEY.startswith("AIzaSy_mock"):
             import asyncio
             await asyncio.sleep(1.2)
             return self._get_mock_response(domain)
 
         clean_text = parsed_input.get("clean_text") or parsed_input.get("raw_text") or json.dumps(parsed_input)
+        
+        context_str = ""
+        if similar_chunks:
+            context_str = "RELEVANT KNOWLEDGE BASE CONTEXT:\n"
+            for i, chunk in enumerate(similar_chunks, 1):
+                context_str += f"[{i}] {chunk['text']} (source: {chunk['source']})\n"
+            context_str += "\n"
+
         user_message = (
+            f"{context_str}"
             f"DOMAIN: {domain}\n\n"
             f"CONTENT TO RESEARCH:\n{clean_text[:3000]}"
         )
 
         try:
-            return await call_gemini(
+            result_model = await call_gemini_validated(
                 system_prompt=RESEARCH_SYSTEM_PROMPT,
                 user_message=user_message,
+                output_model=ResearchOutput,
                 model=self.model,
-                temperature=0.2,
-                expect_json=True,
+                session_id=self.session_id,
+                agent_name="research"
             )
+            return result_model.model_dump()
         except Exception as e:
             import logging
             logging.warning(f"Gemini call failed: {e}. Using mock response.")
@@ -141,10 +154,27 @@ class ResearchAgent:
         session_id = session_id or getattr(self, "session_id", None) or "session-default"
         logger = SessionLogger(session_id)
         logger.log("research_agent", "start", {"domain": domain})
+        
+        push_commentary(session_id, "research", f"Searching domain context for {domain}...", "start")
 
         start_time = time.time()
         try:
-            result = await self._call_llm(parsed_input, domain)
+            from utils.rag_store import search_similar
+            clean_text = parsed_input.get("clean_text") or parsed_input.get("raw_text") or json.dumps(parsed_input)
+            similar_chunks = []
+            try:
+                similar_chunks = search_similar(clean_text, domain)
+            except Exception as e:
+                import logging
+                logging.warning(f"Failed to query similar chunks from ChromaDB: {e}")
+                
+            result = await self._call_llm(parsed_input, domain, similar_chunks=similar_chunks)
+            result["rag_sources_used"] = len(similar_chunks)
+            result["rag_augmented"] = len(similar_chunks) > 0
+            
+            sources = result.get("corroboration_evidence", [])
+            level = result.get("corroboration", "unconfirmed")
+            push_commentary(session_id, "research", f"Found {len(sources)} corroborating sources — corroboration: {level}", "progress")
         except Exception as exc:
             logger.log("research_agent", "error", {"error": str(exc)})
             raise
@@ -162,5 +192,7 @@ class ResearchAgent:
 
         result["model_used"] = MODELS["research"]
         result["agent_display_name"] = "Research Agent"
+
+        push_commentary(session_id, "research", f"Research done in {duration:.1f}s", "complete")
 
         return result

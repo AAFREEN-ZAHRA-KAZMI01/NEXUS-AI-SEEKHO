@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../../core/constants/app_constants.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
@@ -18,6 +20,29 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   bool _isLoadingReset = false;
+  Map<String, dynamic>? _orgDetails;
+  bool _isLoadingOrg = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadOrgDetails();
+  }
+
+  Future<void> _loadOrgDetails() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final apiKey = prefs.getString(AppConstants.apiKeyPrefKey);
+      if (apiKey != null && apiKey.isNotEmpty) {
+        final details = await ApiService().getOrgMe();
+        setState(() => _orgDetails = details);
+      }
+    } catch (_) {
+      // Ignored
+    } finally {
+      if (mounted) setState(() => _isLoadingOrg = false);
+    }
+  }
 
   Future<void> _resetState() async {
     setState(() => _isLoadingReset = true);
@@ -82,7 +107,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       backgroundColor: bgColor,
       bottomNavigationBar: Consumer<AnalysisProvider>(
         builder: (_, provider, __) => NexusBottomNav(
-          currentIndex: 4,
+          currentIndex: 5,
           onTap: (i) => handleBottomNavTap(context, i, provider),
         ),
       ),
@@ -162,6 +187,55 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             const SizedBox(height: 20),
 
+            // ORGANISATION section
+            const _SectionHeader('ORGANISATION'),
+            const SizedBox(height: 8),
+            Container(
+              decoration: BoxDecoration(
+                color: cardColor,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: borderColor, width: 0.5),
+              ),
+              padding: const EdgeInsets.all(14),
+              child: _isLoadingOrg
+                  ? const Center(child: CircularProgressIndicator())
+                  : _orgDetails != null
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Name: ${_orgDetails!['name']}', style: AppTextStyles.body),
+                            const SizedBox(height: 4),
+                            Text('Plan: ${_orgDetails!['plan']}', style: AppTextStyles.bodySmall),
+                            const SizedBox(height: 12),
+                            LinearProgressIndicator(
+                              value: _orgDetails!['monthly_limit'] > 0 
+                                  ? (_orgDetails!['monthly_analysis_count'] / _orgDetails!['monthly_limit']).clamp(0.0, 1.0)
+                                  : 0.0,
+                            ),
+                            const SizedBox(height: 8),
+                            Text('${_orgDetails!['monthly_analysis_count']} of ${_orgDetails!['monthly_limit']} analyses used', style: AppTextStyles.bodySmall),
+                            const SizedBox(height: 12),
+                            _TappableSettingsItem(
+                              icon: Icons.key,
+                              label: 'Manage API Key',
+                              onTap: () => Navigator.pushNamed(context, '/org-setup').then((_) => _loadOrgDetails()),
+                            ),
+                          ],
+                        )
+                      : Column(
+                          children: [
+                            const Text('No organisation connected. Running in local mode.', style: AppTextStyles.bodySmall),
+                            const SizedBox(height: 12),
+                            ElevatedButton(
+                              onPressed: () => Navigator.pushNamed(context, '/org-setup').then((_) => _loadOrgDetails()),
+                              child: const Text('Connect to Organisation'),
+                            ),
+                          ],
+                        ),
+            ),
+
+            const SizedBox(height: 20),
+
             // GENERAL section
             const _SectionHeader('GENERAL'),
             const SizedBox(height: 8),
@@ -195,6 +269,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     label: 'Default Domain',
                     trailing: 'Business'),
               ],
+            ),
+
+            const SizedBox(height: 20),
+
+            // HISTORY section
+            const _SectionHeader('HISTORY'),
+            const SizedBox(height: 8),
+            Container(
+              decoration: BoxDecoration(
+                color: cardColor,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: borderColor, width: 0.5),
+              ),
+              child: Column(
+                children: [
+                  _TappableSettingsItem(
+                    icon: Icons.history,
+                    label: 'Action Outcome History',
+                    trailing: null,
+                    onTap: () => Navigator.pushNamed(context, '/outcome-history'),
+                  ),
+                ],
+              ),
             ),
 
             const SizedBox(height: 20),
@@ -376,6 +473,50 @@ class _SettingsItem extends StatelessWidget {
           ],
           const Icon(Icons.chevron_right, color: text3Color, size: 18),
         ],
+      ),
+    );
+  }
+}
+
+// ── Tappable settings item ─────────────────────────────────────────────────────
+
+class _TappableSettingsItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String? trailing;
+  final VoidCallback? onTap;
+
+  const _TappableSettingsItem({
+    required this.icon,
+    required this.label,
+    this.trailing,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        child: Row(
+          children: [
+            Icon(icon, color: text2Color, size: 18),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                style: AppTextStyles.body.copyWith(color: textColor, fontSize: 13),
+              ),
+            ),
+            if (trailing != null) ...[
+              Text(trailing!, style: AppTextStyles.bodySmall),
+              const SizedBox(width: 4),
+            ],
+            const Icon(Icons.chevron_right, color: text3Color, size: 18),
+          ],
+        ),
       ),
     );
   }

@@ -184,17 +184,9 @@
     } catch { return ts; }
   }
 
-  async function loadSession(id) {
-    try {
-      const data = await Api.getSessionStatus(id);
-      if (data.result) {
-        State.setResult(data.result);
-        State.setSessionId(id);
-        window.location.href = 'insight.html';
-      } else {
-        alert('Result not available for this session yet.');
-      }
-    } catch(e) { alert('Error: ' + e.message); }
+  function loadSession(id) {
+    State.setSessionId(id);
+    window.location.href = 'trace.html';
   }
 
   function renderTable(sessions) {

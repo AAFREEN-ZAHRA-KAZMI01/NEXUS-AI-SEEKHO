@@ -119,8 +119,18 @@ class TestIngestionAgent:
 
     async def test_run_returns_dict_with_mock(self):
         from agents.ingestion_agent import IngestionAgent
-        with patch("agents.ingestion_agent.call_gemini", new_callable=AsyncMock) as mock_call_gemini:
-            mock_call_gemini.return_value = SAMPLE_SIGNALS
+        from schemas.agent_schemas import IngestionOutput, FactItem
+        mock_model = IngestionOutput(
+            agent="ingestion",
+            domain="logistics",
+            facts=[FactItem(text="OGRA increased HSD fuel price by PKR 14.97/litre", confidence="high")],
+            entities=[],
+            sentiment="negative",
+            overall_confidence="high",
+            corroboration_count=1,
+        )
+        with patch("agents.ingestion_agent.call_gemini_validated", new_callable=AsyncMock) as mock_cv:
+            mock_cv.return_value = mock_model
 
             agent = IngestionAgent("session-001")
             parsed_input = {"clean_text": "OGRA fuel price increased 18.5%", "source_type": "text"}
@@ -157,8 +167,18 @@ class TestAnalysisAgent:
 
     async def test_run_returns_dict_with_mock(self):
         from agents.analysis_agent import AnalysisAgent
-        with patch("agents.analysis_agent.call_gemini", new_callable=AsyncMock) as mock_call_gemini:
-            mock_call_gemini.return_value = SAMPLE_ANALYSIS
+        from schemas.agent_schemas import AnalysisOutput
+        mock_model = AnalysisOutput(
+            agent="analysis",
+            domain="logistics",
+            severity=8,
+            severity_label="High",
+            severity_reasoning="Fuel price hike of 18.5% drives up delivery costs significantly.",
+            time_horizon="immediate",
+            reasoning_chain=["Fuel price rose 18.5%", "Delivery cost up PKR 58/kg", "Monthly impact PKR 2.5M", "Immediate pricing action required"],
+        )
+        with patch("agents.analysis_agent.call_gemini_validated", new_callable=AsyncMock) as mock_cv:
+            mock_cv.return_value = mock_model
 
             agent = AnalysisAgent("session-001")
             result = await agent.run(SAMPLE_SIGNALS, "logistics")
@@ -188,8 +208,28 @@ class TestDecisionAgent:
 
     async def test_run_returns_dict_with_mock(self):
         from agents.decision_agent import DecisionAgent
-        with patch("agents.decision_agent.call_gemini", new_callable=AsyncMock) as mock_call_gemini:
-            mock_call_gemini.return_value = SAMPLE_ACTION_PLAN
+        from schemas.agent_schemas import DecisionOutput, ActionItem
+        mock_model = DecisionOutput(
+            agent="decision",
+            domain="logistics",
+            candidates_evaluated=5,
+            actions=[
+                ActionItem(
+                    rank=1, action_id="A1", action_type="update_pricing_rule",
+                    description="Update delivery pricing by 8% to recover fuel cost increase",
+                    api_endpoint="POST /api/logistics/pricing/update",
+                    api_payload={"route_id": "LAHORE-KARACHI", "price_delta_pct": 8.0},
+                    quantified_delta="PKR 58/kg increase",
+                    feasibility_score=9, impact_score=8, composite_score=8.4,
+                    justification="Direct cost recovery from fuel price hike.",
+                    success_metric="delivery_price_per_kg increases in state",
+                    time_to_execute="< 1 hour",
+                )
+            ],
+            reasoning_summary="Pricing update selected as fastest and highest-impact action.",
+        )
+        with patch("agents.decision_agent.call_gemini_validated", new_callable=AsyncMock) as mock_cv:
+            mock_cv.return_value = mock_model
 
             agent = DecisionAgent("session-001")
             result = await agent.run(SAMPLE_ANALYSIS, "logistics")
@@ -217,15 +257,18 @@ class TestResearchAgent:
 
     async def test_run_returns_dict_with_mock(self):
         from agents.research_agent import ResearchAgent
-        mock_result = {
-            "agent": "research",
-            "domain": "logistics",
-            "benchmarks": [],
-            "historical_context": "Fuel prices have historically risen 10-15% in Q4.",
-            "risk_factors": ["currency depreciation", "global oil price"],
-        }
-        with patch("agents.research_agent.call_gemini", new_callable=AsyncMock) as mock_call_gemini:
-            mock_call_gemini.return_value = mock_result
+        from schemas.agent_schemas import ResearchOutput
+        mock_model = ResearchOutput(
+            agent="research",
+            domain="logistics",
+            additional_context="Fuel prices in Pakistan have been volatile in Q4 historically, driven by OGRA notifications.",
+            corroboration="likely",
+            confidence_boosters=["OGRA notification pattern consistent"],
+            rag_sources_used=0,
+            rag_augmented=False,
+        )
+        with patch("agents.research_agent.call_gemini_validated", new_callable=AsyncMock) as mock_cv:
+            mock_cv.return_value = mock_model
 
             agent = ResearchAgent("session-001")
             result = await agent.run(SAMPLE_SIGNALS, "logistics")

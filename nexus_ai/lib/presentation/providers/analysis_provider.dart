@@ -8,7 +8,7 @@ import '../../data/models/analysis_response.dart';
 import '../../data/models/session_trace.dart';
 import '../../data/services/api_service.dart';
 
-enum AnalysisStatus { idle, loading, complete, error }
+enum AnalysisStatus { idle, loading, queued, complete, error }
 
 class AnalysisProvider extends ChangeNotifier {
   final _api = ApiService();
@@ -52,9 +52,11 @@ class AnalysisProvider extends ChangeNotifier {
   String? selectedDomain;
   String textContent            = '';
   String urlContent             = '';
-  String? selectedFileName;
-  List<int>? selectedFileBytes;
-  int? selectedFileSize;
+  
+  // Multi-file state
+  List<String> selectedFileNames = [];
+  List<List<int>> selectedFileBytesList = [];
+  List<int> selectedFileSizes = [];
 
   // ── Setters ────────────────────────────────────────────────────────────
 
@@ -64,16 +66,34 @@ class AnalysisProvider extends ChangeNotifier {
   void setUrlContent(String u)  { urlContent        = u; notifyListeners(); }
 
   void setFile(String name, List<int> bytes) {
-    selectedFileName  = name;
-    selectedFileBytes = bytes;
-    selectedFileSize  = bytes.length;
+    selectedFileNames = [name];
+    selectedFileBytesList = [bytes];
+    selectedFileSizes = [bytes.length];
     notifyListeners();
+  }
+
+  void addFile(String name, List<int> bytes) {
+    if (selectedFileNames.length >= 5) return;
+    selectedFileNames.add(name);
+    selectedFileBytesList.add(bytes);
+    selectedFileSizes.add(bytes.length);
+    notifyListeners();
+  }
+
+  void removeFile(int index) {
+    if (index >= 0 && index < selectedFileNames.length) {
+      selectedFileNames.removeAt(index);
+      selectedFileBytesList.removeAt(index);
+      selectedFileSizes.removeAt(index);
+      notifyListeners();
+    }
   }
 
   bool get hasValidInput {
     if (selectedInputType == 'text') return textContent.trim().length >= 20;
     if (selectedInputType == 'url')  return urlContent.trim().isNotEmpty;
-    return selectedFileBytes != null;
+    if (selectedInputType == 'multi_document') return selectedFileNames.isNotEmpty;
+    return selectedFileNames.isNotEmpty;
   }
 
   // ── Main pipeline trigger ──────────────────────────────────────────────
@@ -104,10 +124,17 @@ class AnalysisProvider extends ChangeNotifier {
       } else if (selectedInputType == 'url') {
         response = await _api.analyseUrl(
           UrlAnalysisRequest(url: urlContent, domain: selectedDomain, sessionId: newSid));
+      } else if (selectedInputType == 'multi_document' || selectedFileNames.length > 1) {
+        response = await _api.analyseMulti(
+          fileBytesList: selectedFileBytesList,
+          fileNames: selectedFileNames,
+          domain: selectedDomain,
+          sessionId: newSid,
+        );
       } else {
         response = await _api.analyseFile(
-          fileBytes: selectedFileBytes!,
-          fileName:  selectedFileName!,
+          fileBytes: selectedFileBytesList.first,
+          fileName:  selectedFileNames.first,
           inputType: selectedInputType,
           domain:    selectedDomain,
           sessionId: newSid,
@@ -165,7 +192,16 @@ class AnalysisProvider extends ChangeNotifier {
         final backendStatus = trace.session['status'] as String?;
 
         if (backendStatus != null) {
-          if (backendStatus == 'pending') {
+          if (backendStatus == 'queued') {
+            if (status != AnalysisStatus.queued) {
+              status = AnalysisStatus.queued;
+              notifyListeners();
+            }
+          } else if (backendStatus == 'pending') {
+            if (status == AnalysisStatus.queued || status == AnalysisStatus.loading) {
+              status = AnalysisStatus.loading;
+              notifyListeners();
+            }
             agentProgressStep = 0;
           } else if (backendStatus == 'ingesting') {
             agentProgressStep = 1;
@@ -379,9 +415,9 @@ class AnalysisProvider extends ChangeNotifier {
     errorMessage      = null;
     textContent       = '';
     urlContent        = '';
-    selectedFileName  = null;
-    selectedFileBytes = null;
-    selectedFileSize  = null;
+    selectedFileNames = [];
+    selectedFileBytesList = [];
+    selectedFileSizes = [];
     selectedDomain    = null;
     liveLogs          = [];
     agentProgressStep = 0;

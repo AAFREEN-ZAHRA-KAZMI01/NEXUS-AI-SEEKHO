@@ -27,9 +27,46 @@ services:
       start_period: 10s
     networks:
       - newsops-network
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - newsops-network
+
+  celery_worker:
+    build: .
+    command: celery -A celery_app worker --loglevel=info --concurrency=4
+    env_file: .env
+    depends_on:
+      - redis
+      - newsops-api
+    volumes:
+      - .:/app
+      - newsops-data:/app/data
+    networks:
+      - newsops-network
+
+  flower:
+    build: .
+    command: celery -A celery_app flower --port=5555
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+      - celery_worker
+    networks:
+      - newsops-network
 
 volumes:
   newsops-data:
+    driver: local
+  redis_data:
     driver: local
 
 networks:

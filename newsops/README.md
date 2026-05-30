@@ -4,6 +4,24 @@ NewsOps is a production-grade FastAPI backend that ingests any news article, doc
 
 ---
 
+## ⚡ Quick Demo
+
+Run the application locally in just 3 steps:
+
+1. **Configure Environment:**
+   ```bash
+   cp .env.example .env
+   # Open .env and add your GEMINI_API_KEY
+   ```
+2. **Start Services:**
+   ```bash
+   docker compose up --build
+   ```
+3. **Run Demo Scenario:**
+   Open the `nexus_ai` app in Flutter, tap **"Try Demo"**, and watch the live agent pipeline run.
+
+---
+
 ## Architecture
 
 ```
@@ -55,10 +73,22 @@ NewsOps is a production-grade FastAPI backend that ingests any news article, doc
              │
              ▼
 ┌────────────────────────────────────────────────┐
-│       PostgreSQL  (asyncpg + SQLAlchemy)        │
+│        SQLite  (aiosqlite + SQLAlchemy)        │
 │   analysis_sessions  agent_artifacts  state_logs│
 └────────────────────────────────────────────────┘
 ```
+> [!NOTE]
+> **Upgrade path to PostgreSQL:** Change `DATABASE_URL` in `.env` to `postgresql+asyncpg://...` — no code changes required.
+
+---
+
+## Known Limitations (Hackathon Scope)
+
+- **Local Device Authentication Only:** Authentication is scoped to the local device using `SharedPreferences` — not suitable for multi-device sync or production user accounts.
+- **ExecutionAgent Integrations:** `ExecutionAgent` calls a stateful Mock API inside the NewsOps service. It does not integrate with real third-party production systems (e.g., live banks, actual CRM engines, real LESCO dispatch systems).
+- **In-Memory State & Rate Limiting:** The API's rate limiter and state stores are held in-process memory. Restarting the backend containers resets all rate-limiting limits and domain states.
+
+---
 
 ---
 

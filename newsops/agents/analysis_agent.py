@@ -4,7 +4,9 @@ import time
 from config import GEMINI_API_KEY, MODELS, DEMO_MODE
 from utils.logger import SessionLogger
 from utils.helpers import retry, extract_json_from_text, now_iso
-from utils.gemini_client import call_gemini
+from utils.validated_gemini import call_gemini_validated
+from schemas.agent_schemas import AnalysisOutput
+from utils.commentary_stream import push_commentary
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -37,6 +39,7 @@ Base score starts at 5. Apply modifiers:
 -1 if confidence = "low"
 -1 if no numeric quantification exists
 -2 if signals contain contradictory directions
+-1 if source_conflicts are present in the signals (mention in severity_reasoning)
 Final score clamped between 1 and 10.
 
 # SEVERITY LABELS
@@ -56,6 +59,7 @@ Final score clamped between 1 and 10.
   "severity_label": "<label>",
   "severity_reasoning": "<paragraph explaining score and modifiers>",
   "time_horizon": "<immediate|short_term|medium_term>",
+  "data_conflicts_noted": <true/false>,
   "kpis_affected": [
     {
       "kpi": "<name>",
@@ -272,13 +276,15 @@ class AnalysisAgent:
         )
 
         try:
-            return await call_gemini(
+            result_model = await call_gemini_validated(
                 system_prompt=system,
                 user_message=user_message,
+                output_model=AnalysisOutput,
                 model=self.model,
-                temperature=0.3,
-                expect_json=True,
+                session_id=self.session_id,
+                agent_name="analysis"
             )
+            return result_model.model_dump()
         except Exception as e:
             import logging
             logging.warning(f"Gemini call failed: {e}. Using mock response.")
@@ -294,9 +300,17 @@ class AnalysisAgent:
         session_id = session_id or getattr(self, "session_id", None) or "session-default"
         logger = SessionLogger(session_id)
         logger.log("analysis_agent", "start", {"domain": domain, "timestamp": now_iso()})
+        
+        signal_count = len(signals.get("facts", [])) if isinstance(signals, dict) else 0
+        push_commentary(session_id, "analysis", f"Analysing {signal_count} signals across {domain} domain...", "start")
 
         start_time = time.time()
         result = await self._call_llm(signals, domain)
+        
+        score = result.get("severity", "N/A")
+        label = result.get("severity_label", "Unknown")
+        push_commentary(session_id, "analysis", f"Severity scored {score}/10 — {label}", "progress")
+        
         duration = time.time() - start_time
 
         logger.log(
@@ -307,5 +321,10 @@ class AnalysisAgent:
 
         result["model_used"] = MODELS["analysis"]
         result["agent_display_name"] = "Analysis Agent"
+
+        kpi_count = len(result.get("kpis_affected", []))
+        fin_impact = result.get("total_impact", {}).get("financial_pkr", 0)
+        fin_str = f"{fin_impact:,.0f}" if isinstance(fin_impact, (int, float)) and fin_impact else "Unknown"
+        push_commentary(session_id, "analysis", f"Analysis done — {kpi_count} KPIs affected, financial impact PKR {fin_str}", "complete")
 
         return result

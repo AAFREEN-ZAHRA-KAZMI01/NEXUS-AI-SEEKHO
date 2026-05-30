@@ -165,14 +165,21 @@ class AnalysisResponse {
   final List<KpiAffected> kpisAffected;
   final TopAction topAction;
   final List<TopAction> alternativeActions;
-  final Map<String, dynamic> beforeState;
-  final Map<String, dynamic> afterState;
+  final Map<String, dynamic>? beforeState;
+  final Map<String, dynamic>? afterState;
   final Map<String, dynamic> delta;
   final List<NotificationSent> notificationsSent;
   final String executionStatus;
   final String? corroboration;
+  final int? confidenceScore;
+  final String? confidenceLabel;
   final String? context;
   final String traceUrl;
+  final int? sourceCount;
+  final List<dynamic>? conflictsDetected;
+  final String? conflictWarning;
+  final int? ragSourcesUsed;
+  final bool? ragAugmented;
   final AllArtifacts? artifacts;
 
   const AnalysisResponse({
@@ -187,14 +194,21 @@ class AnalysisResponse {
     required this.kpisAffected,
     required this.topAction,
     required this.alternativeActions,
-    required this.beforeState,
-    required this.afterState,
+    this.beforeState,
+    this.afterState,
     required this.delta,
     required this.notificationsSent,
     required this.executionStatus,
     this.corroboration,
+    this.confidenceScore,
+    this.confidenceLabel,
     this.context,
     required this.traceUrl,
+    this.sourceCount,
+    this.conflictsDetected,
+    this.conflictWarning,
+    this.ragSourcesUsed,
+    this.ragAugmented,
     this.artifacts,
   });
 
@@ -221,15 +235,22 @@ class AnalysisResponse {
                       ),
       alternativeActions: (j['alternative_actions'] as List? ?? [])
                             .map((e) => TopAction.fromJson(e)).toList(),
-      beforeState:      Map<String, dynamic>.from(j['before_state']      ?? {}),
-      afterState:       Map<String, dynamic>.from(j['after_state']       ?? {}),
+      beforeState:      j['before_state'] != null ? Map<String, dynamic>.from(j['before_state']) : null,
+      afterState:       j['after_state'] != null ? Map<String, dynamic>.from(j['after_state']) : null,
       delta:            Map<String, dynamic>.from(j['delta']             ?? {}),
       notificationsSent:(j['notifications_sent'] as List? ?? [])
                           .map((e) => NotificationSent.fromJson(e)).toList(),
       executionStatus:   j['execution_status'] ?? 'complete',
       corroboration:     j['corroboration'],
+      confidenceScore:   j['confidence_score'] as int?,
+      confidenceLabel:   j['confidence_label'] as String?,
       context:           j['context'],
       traceUrl:          j['trace_url']        ?? '',
+      sourceCount:       j['source_count']     as int?,
+      conflictsDetected: j['conflicts_detected'] as List<dynamic>?,
+      conflictWarning:   j['conflict_warning'] as String?,
+      ragSourcesUsed:    j['rag_sources_used'] as int?,
+      ragAugmented:      j['rag_augmented']    as bool?,
       artifacts: j['artifacts'] != null
                     ? AllArtifacts.fromJson(j['artifacts']) : null,
     );
@@ -246,7 +267,12 @@ class AnalysisResponse {
     'before_state': beforeState, 'after_state': afterState, 'delta': delta,
     'notifications_sent': notificationsSent.map((e) => e.toJson()).toList(),
     'execution_status': executionStatus, 'corroboration': corroboration,
+    'confidence_score': confidenceScore, 'confidence_label': confidenceLabel,
     'context': context, 'trace_url': traceUrl,
+    'source_count': sourceCount, 'conflicts_detected': conflictsDetected,
+    'conflict_warning': conflictWarning,
+    'rag_sources_used': ragSourcesUsed,
+    'rag_augmented': ragAugmented,
     'artifacts': artifacts?.toJson(),
   };
 }

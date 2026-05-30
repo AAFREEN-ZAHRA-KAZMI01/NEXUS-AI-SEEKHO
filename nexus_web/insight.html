@@ -56,16 +56,16 @@
             <div class="kpi-value" id="kpi-severity" style="color:var(--error);">—</div>
           </div>
           <div class="kpi-box">
-            <div class="kpi-label">Cost Impact</div>
+            <div class="kpi-label">Impact Score</div>
             <div class="kpi-value" id="kpi-cost" style="color:var(--warning);">—</div>
           </div>
           <div class="kpi-box">
-            <div class="kpi-label">Revenue at Risk</div>
+            <div class="kpi-label">KPIs Affected</div>
             <div class="kpi-value" id="kpi-revenue" style="color:var(--error);">—</div>
           </div>
           <div class="kpi-box">
-            <div class="kpi-label">Confidence</div>
-            <div class="kpi-value" id="kpi-confidence" style="color:var(--success);">—</div>
+            <div class="kpi-label">Exec Status</div>
+            <div class="kpi-value" id="kpi-confidence" style="color:var(--success);font-size:13px;">—</div>
           </div>
         </div>
 
@@ -223,8 +223,7 @@ renderSidebar('insight');
 function showTab(tab) {
   ['insight','actions','results'].forEach(t => {
     document.getElementById(`content-${t}`).classList.add('hidden');
-    const el = document.getElementById(`tab-${t}`);
-    el.classList.remove('active');
+    document.getElementById(`tab-${t}`).classList.remove('active');
   });
   document.getElementById(`content-${tab}`).classList.remove('hidden');
   document.getElementById(`tab-${tab}`).classList.add('active');
@@ -232,131 +231,168 @@ function showTab(tab) {
 
 function exportTrace() {
   const id = State.getSessionId();
-  if (id) window.open(`http://localhost:8000/api/session/${id}/trace`, '_blank');
-  else alert('No session to export.');
-}
-function shareResult() {
-  const r = State.getResult();
-  const t = r ? `Nexus AI Insight:\n${r.insight||''}\n\nTop Action: ${r.top_action?.description||''}` : 'No result';
-  navigator.clipboard?.writeText(t).then(() => alert('Copied to clipboard!'));
+  if (id) {
+    window.open(`http://localhost:8000/api/session/${id}/export/json`, '_blank');
+  } else {
+    const r = State.getResult();
+    if (!r) { alert('No result to export.'); return; }
+    const blob = new Blob([JSON.stringify(r, null, 2)], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = 'nexus_analysis.json'; a.click();
+    URL.revokeObjectURL(url);
+  }
 }
 
-function fmtPKR(v) {
-  if (!v || v === '—') return '—';
-  if (typeof v === 'string') return v;
-  if (v >= 1e6) return 'PKR ' + (v/1e6).toFixed(1) + 'M';
-  if (v >= 1e3) return 'PKR ' + (v/1e3).toFixed(0) + 'K';
-  return 'PKR ' + v;
+function shareResult() {
+  const r = State.getResult();
+  const t = r
+    ? `Nexus AI Insight:\n${r.insight||''}\n\nTop Action: ${r.top_action?.description||''}`
+    : 'No result loaded';
+  navigator.clipboard?.writeText(t).then(() => alert('Copied to clipboard!'));
 }
 
 function renderResult(r) {
   document.getElementById('domain-topbar').textContent =
-    (r.domain || State.getDomain() || 'General').replace(/\b\w/g,c=>c.toUpperCase()) + ' Analysis';
+    (r.domain || State.getDomain() || 'General').replace(/\b\w/g, c => c.toUpperCase()) + ' Analysis';
 
-  // Severity
-  const sev = parseFloat(r.severity_score ?? r.severity ?? 0);
+  // ── Severity ───────────────────────────────────────────────────
+  const sev = parseFloat(r.severity ?? 0);
   const pct = Math.min(Math.round(sev * 10), 100);
   document.getElementById('sev-fill').style.width = pct + '%';
   document.getElementById('sev-score').textContent = sev.toFixed(1) + ' / 10';
   document.getElementById('kpi-severity').textContent = sev.toFixed(1);
 
-  let sevColor = 'var(--success)', sevLabel = 'LOW', badgeCls = 'badge-green';
-  if (sev >= 8)      { sevColor = 'var(--error)';   sevLabel = 'CRITICAL'; badgeCls = 'badge-red'; }
-  else if (sev >= 6) { sevColor = 'var(--warning)'; sevLabel = 'HIGH';     badgeCls = 'badge-warn'; }
-  else if (sev >= 4) { sevColor = 'var(--blue2)';   sevLabel = 'MEDIUM';   badgeCls = 'badge-blue'; }
+  let sevColor = 'var(--success)', badgeCls = 'badge-green';
+  if (sev >= 8)      { sevColor = 'var(--error)';   badgeCls = 'badge-red'; }
+  else if (sev >= 6) { sevColor = 'var(--warning)'; badgeCls = 'badge-warn'; }
+  else if (sev >= 4) { sevColor = 'var(--blue2)';   badgeCls = 'badge-blue'; }
 
-  document.getElementById('sev-fill').style.background = sevColor;
-  document.getElementById('sev-score').style.color = sevColor;
-  document.getElementById('kpi-severity').style.color = sevColor;
-  document.getElementById('severity-badge').textContent  = sevLabel;
-  document.getElementById('severity-badge').className    = 'badge ' + badgeCls;
-  document.getElementById('sev-desc').textContent = r.severity_description || r.insight_summary || '';
+  document.getElementById('sev-fill').style.background    = sevColor;
+  document.getElementById('sev-score').style.color        = sevColor;
+  document.getElementById('kpi-severity').style.color     = sevColor;
+  document.getElementById('severity-badge').textContent   = r.severity_label || (sev >= 8 ? 'CRITICAL' : sev >= 6 ? 'HIGH' : sev >= 4 ? 'MEDIUM' : 'LOW');
+  document.getElementById('severity-badge').className     = 'badge ' + badgeCls;
+  document.getElementById('sev-desc').textContent = r.impact_summary || r.context || '';
 
-  // Key insight
-  document.getElementById('insight-text').textContent = r.insight || r.insight_text || '—';
+  // ── Key insight ────────────────────────────────────────────────
+  document.getElementById('insight-text').textContent = r.insight || '—';
 
-  // KPIs
-  document.getElementById('kpi-cost').textContent       = fmtPKR(r.cost_impact ?? r.kpis?.cost_impact);
-  document.getElementById('kpi-revenue').textContent    = fmtPKR(r.revenue_at_risk ?? r.kpis?.revenue_at_risk);
-  document.getElementById('kpi-confidence').textContent = r.confidence ? Math.round(r.confidence*100)+'%' : (r.confidence_score ?? '—');
-
-  // KPIs list
+  // ── KPI summary boxes ──────────────────────────────────────────
   const kpis = r.kpis_affected || [];
+  const top  = r.top_action || {};
+
+  document.getElementById('kpi-cost').textContent =
+    top.impact_score != null ? Math.round(top.impact_score * 100) + '%' : '—';
+  document.getElementById('kpi-revenue').textContent = kpis.length || '—';
+  const execSt = r.execution_status || r.status || '—';
+  document.getElementById('kpi-confidence').textContent =
+    execSt.length > 12 ? execSt.substring(0, 12) + '…' : execSt;
+
+  // ── KPIs list ──────────────────────────────────────────────────
   document.getElementById('kpis-list').innerHTML = kpis.length
-    ? kpis.map(k => `
-        <div class="flex justify-between items-center" style="padding:8px 0;border-bottom:1px solid var(--border);">
-          <span class="text-sm">${typeof k === 'string' ? k : k.name || k.kpi}</span>
-          <span class="badge badge-warn">${k.change || k.impact || 'Affected'}</span>
-        </div>`).join('')
+    ? kpis.map(k => {
+        const dir   = k.direction === 'down' ? '▼' : k.direction === 'up' ? '▲' : '~';
+        const delta = k.delta_pct != null ? Math.abs(k.delta_pct).toFixed(1) + '%'
+                    : k.delta     != null ? k.delta.toFixed(2)
+                    : '';
+        const label = delta ? `${dir} ${delta}` : k.direction || 'Affected';
+        const cls   = k.direction === 'down' ? 'badge-red'
+                    : k.direction === 'up'   ? 'badge-green'
+                    : 'badge-warn';
+        return `<div class="flex justify-between items-center" style="padding:8px 0;border-bottom:1px solid var(--border);">
+          <span class="text-sm">${k.kpi || '—'}</span>
+          <span class="badge ${cls}">${label}</span>
+        </div>`;
+      }).join('')
     : '<div class="text-muted text-sm">No KPI data available.</div>';
 
-  // Before / After
-  const ba = r.before_after || r.state_change || {};
-  document.getElementById('ba-before').textContent     = ba.before_value ?? r.current_value ?? '—';
-  document.getElementById('ba-before-sub').textContent = ba.before_label ?? 'Current state';
-  document.getElementById('ba-after').textContent      = ba.after_value  ?? r.projected_value ?? '—';
-  document.getElementById('ba-after-sub').textContent  = ba.after_label  ?? 'Projected state';
+  // ── Before / After ─────────────────────────────────────────────
+  const bState = r.before_state || {};
+  const aState = r.after_state  || {};
+  const bKeys  = Object.keys(bState);
+  const aKeys  = Object.keys(aState);
 
-  // Notifications
-  const notifs = r.notifications_sent || r.notifications || [];
+  if (bKeys.length) {
+    const k = bKeys[0], v = bState[k];
+    document.getElementById('ba-before').textContent     = typeof v === 'number' ? v.toLocaleString() : String(v);
+    document.getElementById('ba-before-sub').textContent = k.replace(/_/g, ' ');
+  } else {
+    document.getElementById('ba-before').textContent     = '—';
+    document.getElementById('ba-before-sub').textContent = 'Current state';
+  }
+  if (aKeys.length) {
+    const k = aKeys[0], v = aState[k];
+    document.getElementById('ba-after').textContent     = typeof v === 'number' ? v.toLocaleString() : String(v);
+    document.getElementById('ba-after-sub').textContent = k.replace(/_/g, ' ');
+  } else {
+    document.getElementById('ba-after').textContent     = '—';
+    document.getElementById('ba-after-sub').textContent = 'Projected state';
+  }
+
+  // ── Notifications ──────────────────────────────────────────────
+  const notifs = r.notifications_sent || [];
   document.getElementById('notif-count').textContent = notifs.length;
   document.getElementById('notif-list').innerHTML = notifs.length
-    ? notifs.slice(0,4).map(n => `
+    ? notifs.slice(0, 4).map(n => `
         <div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:12px;color:var(--text2);">
-          📨 <strong>${n.recipient || n.to || 'Team'}</strong> — ${n.message || n.subject || n}
+          📨 <strong>${n.recipient || n.recipient_role || 'Team'}</strong> — ${n.message_preview || '—'}
         </div>`).join('')
     : '<div class="text-muted text-sm">No notifications sent.</div>';
   if (!notifs.length) document.getElementById('notif-card').classList.add('hidden');
+  else document.getElementById('notif-card').classList.remove('hidden');
 
-  // Actions
-  const top = r.top_action || r.recommended_action || {};
-  document.getElementById('top-action-preview').textContent = top.description || top.action || '—';
-  document.getElementById('top-type').textContent  = (top.action_type || 'RECOMMENDATION').toUpperCase();
-  document.getElementById('top-desc').textContent  = top.description || '—';
-  document.getElementById('top-meta').innerHTML    = [
-    top.expected_delta    && `<span class="badge badge-green">+${top.expected_delta}</span>`,
-    top.feasibility_score && `<span class="badge badge-blue">Feasibility: ${Math.round(top.feasibility_score*100)}%</span>`,
-    top.urgency           && `<span class="badge badge-warn">${top.urgency}</span>`,
+  // ── Top action ─────────────────────────────────────────────────
+  document.getElementById('top-action-preview').textContent = top.description || '—';
+  document.getElementById('top-type').textContent = (top.action_type || 'RECOMMENDATION').toUpperCase();
+  document.getElementById('top-desc').textContent = top.description || '—';
+  document.getElementById('top-meta').innerHTML   = [
+    top.quantified_delta  && `<span class="badge badge-green">${top.quantified_delta}</span>`,
+    top.feasibility_score != null && `<span class="badge badge-blue">Feasibility: ${Math.round(top.feasibility_score * 100)}%</span>`,
+    top.time_to_execute   && `<span class="badge badge-warn">${top.time_to_execute}</span>`,
   ].filter(Boolean).join('');
-  document.getElementById('det-feasibility').textContent  = top.feasibility_score ? Math.round(top.feasibility_score*100)+'%' : '—';
-  document.getElementById('det-impact').textContent       = top.impact_score      ? Math.round(top.impact_score*100)+'%'      : '—';
-  document.getElementById('det-delta').textContent        = top.expected_delta    ? '+'+top.expected_delta                    : '—';
-  document.getElementById('det-urgency').textContent      = top.urgency           || '—';
-  document.getElementById('det-justification').textContent= top.justification     || top.reason || '—';
 
-  const alts = r.alternative_actions || r.alternatives || [];
+  document.getElementById('det-feasibility').textContent   = top.feasibility_score != null ? Math.round(top.feasibility_score * 100) + '%' : '—';
+  document.getElementById('det-impact').textContent        = top.impact_score      != null ? Math.round(top.impact_score * 100)      + '%' : '—';
+  document.getElementById('det-delta').textContent         = top.quantified_delta  || '—';
+  document.getElementById('det-urgency').textContent       = top.time_to_execute   || top.success_metric || '—';
+  document.getElementById('det-justification').textContent = top.justification     || '—';
+
+  // ── Alternative actions ────────────────────────────────────────
+  const alts = r.alternative_actions || [];
   document.getElementById('alt-actions').innerHTML = alts.length
     ? alts.map(a => `
         <div class="action-card">
-          <div class="action-type">${(a.action_type||'ALTERNATIVE').toUpperCase()}</div>
-          <div class="action-desc">${a.description || a.action || ''}</div>
+          <div class="action-type">${(a.action_type || 'ALTERNATIVE').toUpperCase()}</div>
+          <div class="action-desc">${a.description || ''}</div>
           <div class="action-meta">
-            ${a.feasibility_score ? `<span class="badge badge-blue">Feasibility: ${Math.round(a.feasibility_score*100)}%</span>` : ''}
-            ${a.impact_score      ? `<span class="badge badge-green">Impact: ${Math.round(a.impact_score*100)}%</span>`      : ''}
+            ${a.feasibility_score != null ? `<span class="badge badge-blue">Feasibility: ${Math.round(a.feasibility_score * 100)}%</span>` : ''}
+            ${a.impact_score      != null ? `<span class="badge badge-green">Impact: ${Math.round(a.impact_score * 100)}%</span>`          : ''}
+            ${a.quantified_delta          ? `<span class="badge badge-teal">${a.quantified_delta}</span>`                                   : ''}
           </div>
         </div>`).join('')
     : '<div class="text-muted text-sm" style="padding:16px 0;">No alternatives available.</div>';
 
-  // Results
+  // ── Results tab ────────────────────────────────────────────────
   const checks = [
-    ['Pipeline Complete',     true],
-    ['Insights Generated',    !!(r.insight)],
-    ['Action Plan Created',   !!(top.description)],
-    ['Notifications Sent',    notifs.length > 0],
-    ['State Updated',         r.state_updated ?? false],
+    ['Pipeline Complete',   true],
+    ['Insights Generated',  !!(r.insight)],
+    ['Action Plan Created', !!(top.description)],
+    ['Notifications Sent',  notifs.length > 0],
+    ['State Updated',       !!(aKeys.length)],
   ];
   document.getElementById('exec-summary').innerHTML = checks.map(([label, done]) => `
     <div class="flex items-center gap-12">
       <span style="font-size:18px;">${done ? '✅' : '⬜'}</span>
-      <span style="font-size:13px;color:${done?'var(--text)':'var(--text3)'};">${label}</span>
+      <span style="font-size:13px;color:${done ? 'var(--text)' : 'var(--text3)'};">${label}</span>
     </div>`).join('');
 
-  const arts = r.artifacts || {};
+  const arts   = r.artifacts || {};
   const stages = [
-    { title:'Content Ingested',    time: arts.t1 || r.t1 },
-    { title:'Analysis Complete',   time: arts.t2 || r.t2 },
-    { title:'Action Plan Ready',   time: arts.t3 || r.t3 },
-    { title:'Execution Simulated', time: arts.t4 || r.t4 },
+    { title: 'Content Ingested',    time: arts.t1 || r.t1 },
+    { title: 'Analysis Complete',   time: arts.t2 || r.t2 },
+    { title: 'Action Plan Ready',   time: arts.t3 || r.t3 },
+    { title: 'Execution Simulated', time: arts.t4 || r.t4 },
   ];
   document.getElementById('timeline').innerHTML = stages.map(s => `
     <div class="tl-item">
@@ -370,7 +406,8 @@ function renderResult(r) {
 
 const result = State.getResult();
 if (!result) {
-  document.getElementById('no-result').style.display = 'flex';
+  // FIX: classList.remove instead of style.display — CSS `!important` blocks inline style override
+  document.getElementById('no-result').classList.remove('hidden');
   document.getElementById('results-content').classList.add('hidden');
 } else {
   renderResult(result);

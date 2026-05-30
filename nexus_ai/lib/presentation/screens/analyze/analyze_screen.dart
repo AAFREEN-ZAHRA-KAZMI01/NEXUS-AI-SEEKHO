@@ -8,6 +8,7 @@ import '../../widgets/analyze/domain_selector.dart';
 import '../../widgets/analyze/file_upload_button.dart';
 import '../../widgets/common/nexus_button.dart';
 import '../../widgets/common/nexus_card.dart';
+import '../../widgets/analyze/multi_file_list.dart';
 
 class AnalyzeScreen extends StatefulWidget {
   const AnalyzeScreen({super.key});
@@ -100,6 +101,22 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
     super.initState();
     _textCtrl = TextEditingController();
     _urlCtrl = TextEditingController();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is Map && args.containsKey('domain')) {
+      final domain = args['domain'] as String?;
+      if (domain != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            context.read<AnalysisProvider>().setDomain(domain);
+          }
+        });
+      }
+    }
   }
 
   @override
@@ -200,13 +217,13 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
                       onTap: () => provider.setInputType('url'),
                     ),
                     _InputTypeCard(
-                      icon: Icons.dashboard_outlined,
-                      label: 'Dashboard Data',
-                      type: 'excel',
-                      color: const Color(0xFF06B6D4),
+                      icon: Icons.file_copy_outlined,
+                      label: 'Multi-Document',
+                      type: 'multi_document',
+                      color: amberColor,
                       isSelected:
-                          provider.selectedInputType == 'excel',
-                      onTap: () => provider.setInputType('excel'),
+                          provider.selectedInputType == 'multi_document',
+                      onTap: () => provider.setInputType('multi_document'),
                     ),
                   ],
                 ),
@@ -238,6 +255,28 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
                   ],
                 ),
                 const SizedBox(height: 10),
+
+                // ── Try Demo button ────────────────────────────────────
+                _TryDemoButton(
+                  onTap: () {
+                    const demoText =
+                        'State Bank of Pakistan raises benchmark interest rate '
+                        'by 150 basis points to 22.5%. The Monetary Policy '
+                        'Committee cited rising inflation at 28.3% and PKR '
+                        'depreciation of 12% against USD this quarter. KSE-100 '
+                        'fell 890 points immediately after the announcement. '
+                        'Analysts predict commercial banks will raise lending '
+                        'rates within 48 hours, affecting auto financing and '
+                        'mortgage portfolios significantly.';
+                    provider
+                      ..setInputType('text')
+                      ..setDomain('finance')
+                      ..setTextContent(demoText);
+                    _textCtrl.text = demoText;
+                  },
+                ),
+                const SizedBox(height: 10),
+
                 AnimatedSwitcher(
                   duration: const Duration(milliseconds: 250),
                   child: _buildInputPreview(provider, context),
@@ -320,6 +359,18 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
                         }
                       : null,
                 ),
+
+                if (provider.currentSessionId != null)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 12.0),
+                    child: Center(
+                      child: Text(
+                        "Analysis runs in background — you can leave this screen and return",
+                        style: TextStyle(color: text3Color, fontSize: 12),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
 
                 const SizedBox(height: 32),
               ],
@@ -404,8 +455,35 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
       );
     }
 
+    // multi_document mode
+    if (type == 'multi_document') {
+      if (provider.selectedFileNames.isNotEmpty) {
+        return MultiFileList(
+          key: const ValueKey('multi_file_list'),
+          fileNames: provider.selectedFileNames,
+          fileSizes: provider.selectedFileSizes,
+          onRemove: (index) => provider.removeFile(index),
+          onAddMore: () async {
+            final file = await FileService.pickFile();
+            if (file != null) {
+              provider.addFile(file.name, file.bytes);
+            }
+          },
+        );
+      }
+      return FileUploadButton(
+        key: const ValueKey('file_upload_multi'),
+        onFilePicked: (name, bytes, fileType) {
+          provider.addFile(name, bytes);
+        },
+        fileName: null,
+        fileSize: null,
+        onClear: () => provider.reset(),
+      );
+    }
+
     // pdf / docx / excel / csv
-    if (provider.selectedFileName != null) {
+    if (provider.selectedFileNames.isNotEmpty) {
       return Column(
         key: ValueKey('file_selected_$type'),
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -432,7 +510,7 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        provider.selectedFileName!,
+                        provider.selectedFileNames.first,
                         style: const TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
@@ -442,7 +520,7 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
                       ),
                       Text(
                         FileService.formatFileSize(
-                            provider.selectedFileSize ?? 0),
+                            provider.selectedFileSizes.isNotEmpty ? provider.selectedFileSizes.first : 0),
                         style: AppTextStyles.bodySmall,
                       ),
                     ],
@@ -560,6 +638,124 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Try Demo button ──────────────────────────────────────────────────────────
+
+class _TryDemoButton extends StatefulWidget {
+  final VoidCallback onTap;
+  const _TryDemoButton({required this.onTap});
+
+  @override
+  State<_TryDemoButton> createState() => _TryDemoButtonState();
+}
+
+class _TryDemoButtonState extends State<_TryDemoButton> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) {
+        setState(() => _pressed = false);
+        widget.onTap();
+      },
+      onTapCancel: () => setState(() => _pressed = false),
+      child: AnimatedScale(
+        scale: _pressed ? 0.97 : 1.0,
+        duration: const Duration(milliseconds: 120),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                const Color(0xFF0D9488).withOpacity(0.85), // teal-600
+                indigoColor.withOpacity(0.85),
+              ],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: const Color(0xFF0D9488).withOpacity(0.5),
+              width: 0.8,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: indigoColor.withOpacity(0.25),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              // Rocket icon
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Center(
+                  child: Text('🚀', style: TextStyle(fontSize: 18)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Labels
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Try Demo',
+                      style: AppTextStyles.body.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                    Text(
+                      'SBP rate hike · Finance scenario',
+                      style: AppTextStyles.bodySmall.copyWith(
+                        color: Colors.white.withOpacity(0.75),
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // DEMO badge chip
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 9, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFBBF24).withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: const Color(0xFFFBBF24).withOpacity(0.7),
+                    width: 0.8,
+                  ),
+                ),
+                child: const Text(
+                  'DEMO',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFFFBBF24), // amber-400
+                    letterSpacing: 0.8,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -3,7 +3,9 @@ import time
 from config import GEMINI_API_KEY, MODELS, DEMO_MODE
 from utils.logger import SessionLogger
 from utils.helpers import retry, extract_json_from_text, now_iso
-from utils.gemini_client import call_gemini
+from utils.validated_gemini import call_gemini_validated
+from schemas.agent_schemas import IngestionOutput
+from utils.commentary_stream import push_commentary
 
 
 INGESTION_SYSTEM_PROMPT = """
@@ -36,6 +38,7 @@ Step 6 — ASSESS CONFIDENCE: Official/regulatory = high, news media = medium,
 6. If content is too sparse for 3 facts, extract what exists, set confidence to "low".
 7. Capture both absolute and relative date references.
 8. Source credibility: official/regulatory = "high", news = "medium", unverified = "low".
+9. MULTI-SOURCE: Detect if input contains [SOURCE N] markers. If yes, tag each fact with source_index. Detect conflicting numeric or directional claims across sources and populate source_conflicts. Set source_count to the number of distinct sources.
 
 # DOMAIN-SPECIFIC EXTRACTION PRIORITIES
 logistics:   shipment volumes, delivery costs, fuel prices, routes, carrier names, warehouse metrics
@@ -60,9 +63,19 @@ Respond with ONLY valid JSON. No markdown fences. No preamble. Raw JSON only.
       "direction": "<increase|decrease|stable|neutral>",
       "value": "<number or null>",
       "unit": "<unit string or null>",
-      "date_reference": "<date string or null>"
+      "date_reference": "<date string or null>",
+      "source_index": "<numeric index from [SOURCE N] marker, or null>"
     }
   ],
+  "source_conflicts": [
+    {
+      "topic": "<what the conflict is about>",
+      "source_1_claim": "<claim from source A>",
+      "source_2_claim": "<claim from source B>",
+      "conflict_type": "<numeric_mismatch|directional_mismatch>"
+    }
+  ],
+  "source_count": <number of unique sources detected>,
   "entities": {
     "organizations": [],
     "locations": [],
@@ -205,13 +218,15 @@ Cross-reference across sources — tables and KV pairs override plain text for n
             )
 
         try:
-            return await call_gemini(
+            result_model = await call_gemini_validated(
                 system_prompt=INGESTION_SYSTEM_PROMPT,
                 user_message=user_message,
+                output_model=IngestionOutput,
                 model=self.model,
-                temperature=0.1,
-                expect_json=True,
+                session_id=self.session_id,
+                agent_name="ingestion"
             )
+            return result_model.model_dump()
         except Exception as e:
             import logging
             logging.warning(f"Gemini call failed: {e}. Using mock response.")
@@ -238,13 +253,90 @@ Cross-reference across sources — tables and KV pairs override plain text for n
 
         try:
             input_type = parsed_input.get("source_type", "text")
+            clean_text = parsed_input.get('clean_text', '') if isinstance(parsed_input, dict) else parsed_input
+            segments_count = len(clean_text.split('\n')) if clean_text else 0
+            push_commentary(session_id, "ingestion", f"Parsing complete — found {segments_count} raw text segments", "progress")
+            
             result = await self._call_llm(parsed_input, domain, input_type)
+
+            # Compute fact-level confidence, overall confidence and corroboration count
+            facts = result.get("facts", [])
+            entities = result.get("entities", {})
+            
+            entity_words = set()
+            if isinstance(entities, dict):
+                for entity_list in entities.values():
+                    if isinstance(entity_list, list):
+                        for ent in entity_list:
+                            if isinstance(ent, str) and ent.strip():
+                                entity_words.add(ent.strip().lower())
+            
+            import re
+            high_count = 0
+            for fact in facts:
+                if not isinstance(fact, dict):
+                    continue
+                text = fact.get("text", "")
+                val = fact.get("value")
+                
+                # Check for numeric value (high confidence)
+                has_numeric = False
+                if val is not None and val != "":
+                    has_numeric = True
+                else:
+                    if text and re.search(r'\d+', str(text)):
+                        has_numeric = True
+                
+                # Check for named entity (medium confidence)
+                has_entity = False
+                if text:
+                    text_lower = str(text).lower()
+                    for ent in entity_words:
+                        if ent in text_lower:
+                            has_entity = True
+                            break
+                
+                if has_numeric:
+                    fact["confidence"] = "high"
+                    high_count += 1
+                elif has_entity:
+                    fact["confidence"] = "medium"
+                else:
+                    fact["confidence"] = "low"
+                    
+            total_facts = len(facts)
+            
+            push_commentary(session_id, "ingestion", f"Extracted {total_facts} facts — {high_count} high confidence, {total_facts - high_count} medium/low", "progress")
+            
+            if total_facts > 0:
+                pct_high = high_count / total_facts
+                if pct_high >= 0.6:
+                    overall_confidence = "high"
+                elif pct_high >= 0.3:
+                    overall_confidence = "medium"
+                else:
+                    overall_confidence = "low"
+            else:
+                overall_confidence = "low"
+                
+            from collections import Counter
+            directions = [f.get("direction") for f in facts if isinstance(f, dict) and f.get("direction")]
+            if directions:
+                corroboration_count = Counter(directions).most_common(1)[0][1]
+            else:
+                corroboration_count = 0
+                
+            result["overall_confidence"] = overall_confidence
+            result["corroboration_count"] = corroboration_count
 
             duration = time.time() - start_time
             logger.log("ingestion", "complete", {"duration": duration})
 
             result["model_used"] = MODELS["ingestion"]
             result["agent_display_name"] = "Ingestion Agent"
+
+            first_fact = facts[0].get("text", "") if facts else "No facts extracted"
+            push_commentary(session_id, "ingestion", f"Ingestion done in {duration:.1f}s — top signal: {first_fact[:50]}...", "complete")
 
             return result
         except Exception as e:

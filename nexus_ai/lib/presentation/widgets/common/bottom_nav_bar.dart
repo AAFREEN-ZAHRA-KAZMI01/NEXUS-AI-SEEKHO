@@ -28,14 +28,14 @@ void handleBottomNavTap(BuildContext context, int index, AnalysisProvider provid
       _loadLatestAndNavigate(context, provider, '/actions');
     }
   } else if (index == 3) {
-    if (provider.result != null) {
-      if (currentRoute != '/trace') {
-        Navigator.pushNamed(context, '/trace');
-      }
-    } else {
-      _loadLatestAndNavigate(context, provider, '/trace');
+    if (currentRoute != '/dashboard') {
+      Navigator.pushNamed(context, '/dashboard');
     }
   } else if (index == 4) {
+    if (currentRoute != '/alerts') {
+      Navigator.pushNamed(context, '/alerts');
+    }
+  } else if (index == 5) {
     if (currentRoute != '/profile') {
       Navigator.pushNamed(context, '/profile');
     }
@@ -108,7 +108,8 @@ class NexusBottomNav extends StatelessWidget {
       (Icons.home_outlined,         Icons.home,         'Home'),
       (Icons.lightbulb_outline,     Icons.lightbulb,    'Insights'),
       (Icons.bolt_outlined,         Icons.bolt,         'Actions'),
-      (Icons.receipt_long_outlined, Icons.receipt_long, 'Logs'),
+      (Icons.dashboard_outlined,    Icons.dashboard,    'Dashboard'),
+      (Icons.notifications_outlined, Icons.notifications, 'Alerts'),
       (Icons.person_outline,        Icons.person,       'Profile'),
     ];
 

@@ -6,6 +6,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../data/models/analysis_response.dart';
+import '../../../data/models/action_outcome.dart';
 import '../../../data/services/api_service.dart';
 import '../../providers/analysis_provider.dart';
 import '../../providers/auth_provider.dart';
@@ -15,9 +16,51 @@ import '../../widgets/common/pill_badge.dart';
 import '../../widgets/common/bottom_nav_bar.dart';
 import '../../../core/constants/api_constants.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:path_provider/path_provider.dart';
 
-class InsightScreen extends StatelessWidget {
+class InsightScreen extends StatefulWidget {
   const InsightScreen({super.key});
+
+  @override
+  State<InsightScreen> createState() => _InsightScreenState();
+}
+
+enum _ActionTrackState { idle, showingYesNote, tracked }
+
+class _InsightScreenState extends State<InsightScreen> {
+  _ActionTrackState _trackState = _ActionTrackState.idle;
+  bool _trackLoading = false;
+  String? _trackedOutcomeId;
+  final TextEditingController _noteCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _noteCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _confirmAction(String sessionId, bool confirmed) async {
+    setState(() => _trackLoading = true);
+    try {
+      final note = _noteCtrl.text.trim();
+      final res = await ApiService().confirmAction(
+        sessionId,
+        confirmed,
+        note: note.isEmpty ? null : note,
+      );
+      setState(() {
+        _trackedOutcomeId = res['id'] as String?;
+        _trackState = _ActionTrackState.tracked;
+      });
+    } catch (_) {
+      // silently fail — tracking is best-effort
+      setState(() => _trackState = _ActionTrackState.tracked);
+    } finally {
+      setState(() => _trackLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -70,6 +113,11 @@ class InsightScreen extends StatelessWidget {
             ),
             title: Text(appBarTitle, style: AppTextStyles.heading3),
             actions: [
+              IconButton(
+                icon: const Icon(Icons.picture_as_pdf_outlined, color: textColor),
+                tooltip: 'Export PDF',
+                onPressed: () => _exportPdf(context, result),
+              ),
               IconButton(
                 icon: const Icon(Icons.share, color: textColor),
                 onPressed: () async {
@@ -135,6 +183,70 @@ class InsightScreen extends StatelessWidget {
                     ),
                   ),
                 ],
+                if (result.conflictsDetected != null && result.conflictsDetected!.isNotEmpty) ...[
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFBBF24).withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFFBBF24).withOpacity(0.5), width: 1),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.warning_amber_rounded, color: Color(0xFFFBBF24), size: 22),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                result.conflictWarning ?? 'Source Conflicts Detected',
+                                style: const TextStyle(
+                                  color: Color(0xFFFBBF24),
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        ...result.conflictsDetected!.map((c) {
+                          String topic = '';
+                          String c1 = '';
+                          String c2 = '';
+                          if (c is Map) {
+                            topic = c['topic'] ?? '';
+                            c1 = c['source_1_claim'] ?? '';
+                            c2 = c['source_2_claim'] ?? '';
+                          }
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 4, bottom: 4),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '• Topic: $topic',
+                                  style: const TextStyle(color: textColor, fontSize: 12, fontWeight: FontWeight.w600),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '  - Source 1: $c1',
+                                  style: const TextStyle(color: text2Color, fontSize: 11),
+                                ),
+                                Text(
+                                  '  - Source 2: $c2',
+                                  style: const TextStyle(color: text2Color, fontSize: 11),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      ],
+                    ),
+                  ),
+                ],
                 // 1. Severity bar card
                 NexusCard(
                   borderColor: getSeverityColor(result.severity),
@@ -151,6 +263,13 @@ class InsightScreen extends StatelessWidget {
                           ),
                         ],
                       ),
+                      if (result.sourceCount != null && result.sourceCount! > 1) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'Analysis based on ${result.sourceCount} sources',
+                          style: AppTextStyles.bodySmall.copyWith(color: text2Color),
+                        ),
+                      ],
                       const SizedBox(height: 8),
                       ClipRRect(
                         borderRadius: BorderRadius.circular(4),
@@ -169,11 +288,63 @@ class InsightScreen extends StatelessWidget {
                           color: getSeverityColor(result.severity),
                         ),
                       ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Text('Confidence: ', style: AppTextStyles.body),
+                          PillBadge(
+                            result.confidenceLabel ?? 'Low',
+                            type: (result.confidenceLabel?.toLowerCase() == 'high')
+                                ? PillType.green
+                                : (result.confidenceLabel?.toLowerCase() == 'medium')
+                                    ? PillType.orange
+                                    : PillType.red,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Based on ${result.corroboration ?? '0'} corroborating signals',
+                              style: AppTextStyles.bodySmall,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
 
                 const SizedBox(height: 12),
+
+                if (result.ragSourcesUsed != null && result.ragSourcesUsed! > 0) ...[
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: primaryColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: primaryColor.withOpacity(0.3), width: 1),
+                    ),
+                    child: Tooltip(
+                      triggerMode: TooltipTriggerMode.tap,
+                      message: 'This analysis was augmented with relevant past analyses and domain knowledge from the NewsOps knowledge base.',
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.info_outline, color: primaryColor, size: 16),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Enriched with ${result.ragSourcesUsed} knowledge base sources',
+                            style: AppTextStyles.bodySmall.copyWith(
+                              color: primaryColor,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
 
                 // 2. Key insight card
                 NexusCard(
@@ -313,8 +484,42 @@ class InsightScreen extends StatelessWidget {
                           ),
                         ],
                       ),
+                      const SizedBox(height: 12),
+                      NexusButton(
+                        'See what changed',
+                        isOutline: true,
+                        onTap: () {
+                          Navigator.pushNamed(
+                            context,
+                            '/state-diff',
+                            arguments: {
+                              'beforeState': result.beforeState ?? {},
+                              'afterState': result.afterState ?? {},
+                              'domain': result.domain,
+                              'actionTaken': result.topAction.description.isNotEmpty
+                                  ? result.topAction.description
+                                  : result.topAction.actionType,
+                            },
+                          );
+                        },
+                      ),
                     ],
                   ),
+                ),
+
+                const SizedBox(height: 12),
+
+                // ── Action tracking card ─────────────────────────────────
+                _ActionTrackingCard(
+                  sessionId: result.sessionId,
+                  trackState: _trackState,
+                  trackLoading: _trackLoading,
+                  noteCtrl: _noteCtrl,
+                  onYesTapped: () {
+                    setState(() => _trackState = _ActionTrackState.showingYesNote);
+                  },
+                  onNoTapped: () => _confirmAction(result.sessionId, false),
+                  onConfirmNote: () => _confirmAction(result.sessionId, true),
                 ),
 
                 const SizedBox(height: 12),
@@ -499,6 +704,91 @@ class InsightScreen extends StatelessWidget {
         );
       },
     );
+  }
+
+  Future<void> _exportPdf(BuildContext context, AnalysisResponse result) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return Center(
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: cardColor,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: borderColor, width: 0.5),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: const [
+                CircularProgressIndicator(color: primaryColor),
+                SizedBox(height: 16),
+                Text(
+                  'Generating PDF Report...',
+                  style: TextStyle(color: textColor, fontSize: 13, decoration: TextDecoration.none),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    try {
+      final pdfBytes = await ApiService().exportSessionPdf(result.sessionId);
+      
+      if (context.mounted) {
+        Navigator.pop(context); // Close loading dialog
+      }
+
+      if (kIsWeb) {
+        final url = '${ApiConstants.baseUrl}/api/session/${result.sessionId}/export/pdf';
+        final uri = Uri.parse(url);
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        } else {
+          throw Exception("Could not open export URL");
+        }
+      } else {
+        final tempDir = await getTemporaryDirectory();
+        final file = File('${tempDir.path}/newsops_report_${result.sessionId}.pdf');
+        await file.writeAsBytes(pdfBytes);
+        
+        final fileUri = Uri.file(file.path);
+        if (await canLaunchUrl(fileUri)) {
+          await launchUrl(fileUri, mode: LaunchMode.externalApplication);
+        } else {
+          // Fallback to external application with full web route if file uri is not launchable
+          final url = '${ApiConstants.baseUrl}/api/session/${result.sessionId}/export/pdf';
+          final uri = Uri.parse(url);
+          if (await canLaunchUrl(uri)) {
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
+          } else {
+            throw Exception("Could not launch viewer");
+          }
+        }
+      }
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Report saved'),
+            backgroundColor: successColor,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.pop(context); // Close loading dialog if error happens before it is closed
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Export failed: ${e.toString().replaceAll("Exception: ", "")}'),
+            backgroundColor: errorColor,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _downloadAsJson(BuildContext context, AnalysisResponse result) async {
@@ -775,6 +1065,211 @@ class _ActionRow extends StatelessWidget {
     );
   }
 }
+
+// ── Action Tracking Card ───────────────────────────────────────────────────────
+
+class _ActionTrackingCard extends StatelessWidget {
+  final String sessionId;
+  final _ActionTrackState trackState;
+  final bool trackLoading;
+  final TextEditingController noteCtrl;
+  final VoidCallback onYesTapped;
+  final VoidCallback onNoTapped;
+  final VoidCallback onConfirmNote;
+
+  const _ActionTrackingCard({
+    required this.sessionId,
+    required this.trackState,
+    required this.trackLoading,
+    required this.noteCtrl,
+    required this.onYesTapped,
+    required this.onNoTapped,
+    required this.onConfirmNote,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return NexusCard(
+      borderColor: const Color(0xFF6366F1).withOpacity(0.35),
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 280),
+        child: _buildContent(context),
+      ),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
+    switch (trackState) {
+      case _ActionTrackState.tracked:
+        return Row(
+          key: const ValueKey('tracked'),
+          children: [
+            const Icon(Icons.check_circle_outline, color: Color(0xFF34D399), size: 18),
+            const SizedBox(width: 10),
+            Text(
+              'Tracked — you can record the outcome later',
+              style: AppTextStyles.bodySmall.copyWith(
+                color: const Color(0xFF6B7280),
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+            const Spacer(),
+            GestureDetector(
+              onTap: () => Navigator.pushNamed(context, '/outcome-history'),
+              child: Text(
+                'View History →',
+                style: AppTextStyles.bodySmall.copyWith(
+                  color: const Color(0xFF818CF8),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        );
+
+      case _ActionTrackState.showingYesNote:
+        return Column(
+          key: const ValueKey('yesNote'),
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '✅  Action Applied',
+              style: AppTextStyles.label.copyWith(
+                color: const Color(0xFF34D399),
+                letterSpacing: 0.8,
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: noteCtrl,
+              style: AppTextStyles.body.copyWith(fontSize: 13),
+              maxLines: 2,
+              decoration: InputDecoration(
+                hintText: 'Add a note (optional)',
+                hintStyle: AppTextStyles.bodySmall.copyWith(color: const Color(0xFF6B7280)),
+                filled: true,
+                fillColor: const Color(0xFF0F0F14),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Color(0xFF2D2D3A), width: 1),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Color(0xFF2D2D3A), width: 1),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Color(0xFF6366F1), width: 1.5),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: trackLoading ? null : onConfirmNote,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF6366F1),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: trackLoading
+                    ? const SizedBox(
+                        height: 16,
+                        width: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text(
+                        'Confirm',
+                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                      ),
+              ),
+            ),
+          ],
+        );
+
+      case _ActionTrackState.idle:
+      default:
+        return Row(
+          key: const ValueKey('idle'),
+          children: [
+            const Icon(Icons.help_outline, color: Color(0xFF9CA3AF), size: 18),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Did you apply this action?',
+                style: AppTextStyles.body.copyWith(fontSize: 13),
+              ),
+            ),
+            const SizedBox(width: 8),
+            if (trackLoading)
+              const SizedBox(
+                height: 18,
+                width: 18,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF6366F1)),
+              )
+            else ...[
+              _TrackButton(
+                label: 'Yes',
+                color: const Color(0xFF34D399),
+                onTap: onYesTapped,
+              ),
+              const SizedBox(width: 8),
+              _TrackButton(
+                label: 'No',
+                color: const Color(0xFF6B7280),
+                onTap: onNoTapped,
+              ),
+            ],
+          ],
+        );
+    }
+  }
+}
+
+class _TrackButton extends StatelessWidget {
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _TrackButton({
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.12),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withOpacity(0.5), width: 1),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: color,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _NotifRow extends StatelessWidget {
   final NotificationSent notif;

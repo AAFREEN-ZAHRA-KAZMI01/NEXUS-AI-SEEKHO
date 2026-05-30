@@ -11,6 +11,8 @@ import '../../widgets/common/nexus_button.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../data/services/api_service.dart';
 import '../../widgets/common/notifications_sheet.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../../core/constants/app_constants.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -22,16 +24,28 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedTab = 0;
   Future<List<Map<String, dynamic>>>? _recentSessionsFuture;
+  bool _isLocalMode = true;
 
   @override
   void initState() {
     super.initState();
+    _checkLocalMode();
     _fetchRecentSessions();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         context.read<AnalysisProvider>().addListener(_onProviderUpdate);
       }
     });
+  }
+
+  void _checkLocalMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = prefs.getString(AppConstants.apiKeyPrefKey);
+    if (mounted) {
+      setState(() {
+        _isLocalMode = key == null || key.isEmpty;
+      });
+    }
   }
 
   void _onProviderUpdate() {
@@ -254,11 +268,46 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
 
+                      if (_isLocalMode)
+                        Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.orange.withOpacity(0.5)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Expanded(
+                                child: Text('Running in local mode — connect an organisation to sync across devices', style: TextStyle(color: Colors.orange)),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.pushNamed(context, '/org-setup').then((_) => _checkLocalMode()),
+                                child: const Text('Set up', style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)),
+                              ),
+                            ],
+                          ),
+                        ),
+
                       Container(
-                        margin: const EdgeInsets.all(16),
-                        child: NexusButton(
-                          '+ Analyze New Content',
-                          onTap: () => Navigator.pushNamed(context, '/analyze'),
+                        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: NexusButton(
+                                '+ Analyze New Content',
+                                onTap: () => Navigator.pushNamed(context, '/analyze'),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: NexusButton(
+                                'Domain Dashboard',
+                                onTap: () => Navigator.pushNamed(context, '/dashboard'),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
 

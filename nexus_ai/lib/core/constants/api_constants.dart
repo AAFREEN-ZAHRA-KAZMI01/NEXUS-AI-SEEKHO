@@ -38,6 +38,7 @@ class ApiConstants {
   static const String recentSessions      = '/api/sessions';
   static String sessionTrace(String id)    => '/api/session/$id/trace';
   static String sessionStatus(String id)   => '/api/session/$id/status';
+  static String sessionStream(String id)   => '/api/session/$id/stream';
   static String domainState(String domain) => '/api/state/$domain';
   static const String resetState           = '/api/state/reset';
 

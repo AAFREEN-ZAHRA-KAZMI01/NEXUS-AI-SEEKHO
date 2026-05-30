@@ -31,6 +31,8 @@ async def run_pipeline(
         parsed = await parse_csv(file_bytes)
     elif input_type == "excel":
         parsed = await parse_excel(file_bytes)
+    elif input_type == "multi_document":
+        parsed = await parse_text(content)
     else:
         raise ValueError(f"Unsupported input_type: {input_type}")
 

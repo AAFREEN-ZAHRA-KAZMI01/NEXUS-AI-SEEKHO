@@ -11,6 +11,7 @@ import '../../providers/analysis_provider.dart';
 import '../../widgets/common/gradient_text.dart';
 import '../../widgets/common/nexus_button.dart';
 import '../../widgets/common/nexus_card.dart';
+import '../../widgets/common/pill_badge.dart';
 import '../../widgets/results/timeline_widget.dart';
 import '../../widgets/results/before_after_widget.dart';
 
@@ -94,6 +95,38 @@ class ResultsScreen extends StatelessWidget {
                         textAlign: TextAlign.center,
                       ),
                     ],
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Severity & Confidence card
+                  NexusCard(
+                    borderColor: getSeverityColor(result.severity),
+                    child: Row(
+                      children: [
+                        Text(
+                          'Severity Score: ',
+                          style: AppTextStyles.body.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        PillBadge(
+                          '${result.severity} / 10 — ${result.severityLabel}',
+                          type: result.severity >= 7
+                              ? PillType.red
+                              : result.severity >= 5
+                                  ? PillType.orange
+                                  : PillType.green,
+                        ),
+                        const Spacer(),
+                        PillBadge(
+                          result.confidenceLabel ?? 'Low',
+                          type: (result.confidenceLabel?.toLowerCase() == 'high')
+                              ? PillType.green
+                              : (result.confidenceLabel?.toLowerCase() == 'medium')
+                                  ? PillType.orange
+                                  : PillType.red,
+                        ),
+                      ],
+                    ),
                   ),
 
                   const SizedBox(height: 24),
